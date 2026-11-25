@@ -123,6 +123,20 @@
   .acts button { flex:1; font-size:16px; padding:14px 6px; line-height:1.1; }
   .acts button small { display:block; font-size:11px; font-weight:600; opacity:.85; margin-top:2px; }
   .acts button.sm { flex:0 0 54px; font-size:20px; }
+  /* Écrans peu hauts (ordinateur portable, téléphone couché) : tout plus compact */
+  @media (max-height: 640px) {
+    .status { display:none; }
+    .dock { padding-top:8px; }
+    .me-av { width:32px; height:32px; font-size:18px; }
+    .mybar .s { font-size:19px; }
+    .rack { padding:6px 4px 9px; margin-top:6px; }
+    .chip { width:46px; height:46px; }
+    .chip::before { inset:6px; }
+    .chip span { font-size:12px; }
+    .hint2 { display:none; }
+    .acts { margin-top:8px; }
+    .acts button { padding:11px 6px; font-size:15px; }
+  }
   .acts button.auto { position:relative; overflow:hidden; }
   .acts button.auto .bar { position:absolute; left:0; bottom:0; height:5px; width:100%; background:rgba(42,29,0,.55); transform-origin:left;
                            animation:drain linear forwards; }
@@ -485,23 +499,39 @@ function seatHTML(p, x, y) {
 function renderTable() {
   const wrap = $('table');
   // la table prend la place restante entre le haut, le bandeau et la barre du bas
-  const avail = window.innerHeight - $('dock').offsetHeight - $('status').offsetHeight - 76;
-  const W = wrap.clientWidth, H = Math.round(Math.max(270, Math.min(440, W * 1.1, avail)));
+  const avail = window.innerHeight - $('dock').offsetHeight - $('status').offsetHeight - 70;
+  const W = wrap.clientWidth;
+  const H = Math.round(Math.max(W > 420 ? 230 : 270, Math.min(440, W * 1.1, avail)));
   wrap.style.height = H + 'px';
   const cx = W / 2, cy = H / 2, rx = W / 2 - 36, ry = H / 2 - 38;
+  // table basse et large : cartes et pot côte à côte au milieu ; sinon l'un au-dessus de l'autre
+  const flat = H < 330 && W > 420;
+  const board = flat ? { x: cx - 52, y: cy } : { x: cx, y: cy - 34 };
+  const potP = flat ? { x: cx + 100, y: cy } : { x: cx, y: cy + 30 };
   const n = S.players.length, meIdx = Math.max(0, S.players.findIndex(p => p.id === S.me));
   const nCards = S.handActive ? { preflop: 0, flop: 3, turn: 4, river: 5 }[S.street] : 0;
   const middle = S.pot - S.players.reduce((s, p) => s + p.streetBet, 0);  // jetons déjà ramassés au centre
   let html = '<div class="felt" id="felt"><div class="logo">♠ ♥ ♣ ♦</div></div>';
-  html += `<div class="board" style="left:${cx}px;top:${cy - 34}px">` +
+  html += `<div class="board" style="left:${board.x}px;top:${board.y}px">` +
     [0, 1, 2, 3, 4].map(k => `<div class="card ${k < nCards ? 'up' : ''} ${k < nCards && k >= prevCards ? 'deal' : ''}" style="animation-delay:${Math.max(0, k - prevCards) * 130}ms"></div>`).join('') + '</div>';
-  html += `<div class="pot" style="left:${cx}px;top:${cy + 30}px"><div id="potStack">${middle > 0 ? stackHTML(middle) : ''}</div>
+  html += `<div class="pot" style="left:${potP.x}px;top:${potP.y}px"><div id="potStack">${middle > 0 ? stackHTML(middle) : ''}</div>
     <div class="pamt">${S.pot ? 'Pot : ' + fmt(S.pot) : ''}</div></div>`;
   geo = { bet: {}, seat: {} };
-  S.players.forEach((p, k) => {
+  // places des joueurs autour de l'ovale (moi toujours en bas)
+  const seats = S.players.map((p, k) => {
     const rel = (k - meIdx + n) % n, ang = Math.PI / 2 + rel * 2 * Math.PI / n;
-    const x = cx + rx * Math.cos(ang), y = cy + ry * Math.sin(ang);
-    const bx = cx + (x - cx) * .55, by = cy + (y - cy) * .55;
+    return { x: cx + rx * Math.cos(ang), y: cy + ry * Math.sin(ang) };
+  });
+  // zones à ne pas recouvrir : cartes, pot, et chaque joueur (avatar + nom + jetons)
+  const obst = [[board.x - 80, board.x + 80, board.y - 20, board.y + 20], [potP.x - 44, potP.x + 44, potP.y - 22, potP.y + 26],
+                ...seats.map(s => [s.x - 32, s.x + 32, s.y - 26, s.y + 44])];
+  const hit = (bx, by) => obst.some(([x1, x2, y1, y2]) => bx + 24 > x1 && bx - 24 < x2 && by + 22 > y1 && by - 22 < y2);
+  S.players.forEach((p, k) => {
+    const { x, y } = seats[k];
+    const nx = cx + (x - cx) * .55, ny = cy + (y - cy) * .55;
+    // on essaie : vers le centre, un peu plus bas, un peu plus haut, puis à côté du joueur
+    const tries = [[nx, ny], [nx, ny + 34], [nx, ny - 34], [x + (x <= cx + 1 ? 72 : -72), y], [x + (x <= cx + 1 ? -72 : 72), y]];
+    const [bx, by] = tries.find(([a, b]) => !hit(a, b)) || tries[0];
     geo.bet[p.id] = { x: bx, y: by }; geo.seat[p.id] = { x, y };
     html += seatHTML(p, x, y);
     const pend = p.id === S.me ? pendingTotal() : 0, amt = p.streetBet + pend;
@@ -699,7 +729,7 @@ function renderDock() {
 function rackPoint() { return centerOf($('rack')); }
 
 /* Envoi automatique : la mise part AUTO_MS après le dernier jeton posé, si le montant est valable */
-const AUTO_MS = 1000;
+const AUTO_MS = 700;
 let autoTimer = null, autoStart = 0;
 function clearAuto() { clearTimeout(autoTimer); autoTimer = null; autoStart = 0; }
 function scheduleAuto() {
@@ -723,7 +753,7 @@ async function onAction(a) {
   if (a === 'call' || a === 'allin') {
     const amt = a === 'call' ? Math.min(toCallOf(m), m.stack) : m.stack;
     flyAmount(rackPoint(), geoPoint('bet', m.id), amt, { size: 28 }); sfx.clink(3); buzz(25);
-    selfAnimated = true; await sleep(380);
+    selfAnimated = true; await sleep(200);
     if (!await act(a)) selfAnimated = false;
     return;
   }
@@ -749,6 +779,7 @@ function startDrag(e) {
       : t ? `Attends ton tour 😉 C'est à ${t.name}.` : 'Attends la carte suivante 😉');
     return; }
   if (pendingTotal() + v > m.stack) { src.classList.remove('shake'); void src.offsetWidth; src.classList.add('shake'); sfx.nope(); return; }
+  if (drag) abortDrag();  // un glisser précédent pas terminé (double tap, 2 doigts) : on le nettoie
   const r = src.getBoundingClientRect();
   const ghost = src.cloneNode(true);
   ghost.classList.add('drag');
@@ -760,7 +791,20 @@ function startDrag(e) {
   src.addEventListener('pointermove', moveDrag);
   src.addEventListener('pointerup', endDrag);
   src.addEventListener('pointercancel', endDrag);
+  src.addEventListener('lostpointercapture', endDrag);
   buzz(8);
+}
+function detachDrag(d) {
+  ['pointermove', 'pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => d.src.removeEventListener(ev, ev === 'pointermove' ? moveDrag : endDrag));
+}
+function abortDrag() {
+  if (!drag) return;
+  detachDrag(drag); drag.ghost.remove(); drag = null;
+  $('felt') && $('felt').classList.remove('hot');
+}
+/* Filet de sécurité : supprime tout jeton fantôme qui ne serait plus suivi */
+function sweepGhosts() {
+  document.querySelectorAll('.chip.drag').forEach(g => { if ((!drag || g !== drag.ghost) && !g.dataset.anim) g.remove(); });
 }
 function overTable(x, y) { const r = $('felt').getBoundingClientRect(); return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom; }
 function moveDrag(e) {
@@ -775,9 +819,9 @@ function moveDrag(e) {
 function endDrag(e) {
   if (!drag || e.pointerId !== drag.id) return;
   const d = drag; drag = null;
-  d.src.removeEventListener('pointermove', moveDrag);
-  d.src.removeEventListener('pointerup', endDrag);
-  d.src.removeEventListener('pointercancel', endDrag);
+  detachDrag(d);
+  d.ghost.dataset.anim = '1';
+  setTimeout(() => d.ghost.remove(), 800);  // au cas où l'animation ne se termine pas
   $('felt') && $('felt').classList.remove('hot');
   const a = d.pts[0], b = d.pts[d.pts.length - 1];
   const vy = (b.y - a.y) / Math.max(1, b.t - a.t);   // px/ms, négatif = vers le haut
@@ -870,32 +914,44 @@ function render() {
   renderTable();
   document.querySelector('main').style.paddingBottom = ($('dock').offsetHeight + 16) + 'px';
 }
-async function poll(force) {
+/* since = version que j'ai déjà : le serveur attend qu'il se passe quelque chose avant de répondre */
+async function poll(force, since = -1) {
   try {
-    const r = await fetch(`/api/state?code=${encodeURIComponent(CODE)}&token=${encodeURIComponent(token || '')}`, { cache: 'no-store' });
+    const r = await fetch(`/api/state?code=${encodeURIComponent(CODE)}&token=${encodeURIComponent(token || '')}&since=${since}`, { cache: 'no-store' });
     const d = await r.json();
-    if (r.status === 404) { open('notFound'); close('joinView'); close('tableView'); close('dock'); return; }
+    if (r.status === 404) { open('notFound'); close('joinView'); close('tableView'); close('dock'); return 'gone'; }
     if (!d.me) {
-      S = d;
+      S = d; lastVersion = d.version;
       if (token) { localStorage.removeItem(KEY); token = null; open('kickedMsg'); document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden')); }
       open('joinView'); close('tableView'); close('dock'); $('menuBtn').classList.add('hidden'); $('inviteBtn').classList.add('hidden');
-      return;
+      return 'ok';
     }
+    if (d.version < lastVersion) return 'ok';  // réponse arrivée en retard : on l'ignore
     if (force || d.version !== lastVersion) {
       const before = snap(), prev = P;
       S = d; lastVersion = d.version;
       render();
+      sweepGhosts();
       animate(prev, S, before, snap());
       processLogs();
       P = JSON.parse(JSON.stringify(S));
     } else S = d;
-  } catch (e) { /* réseau momentanément indisponible : on réessaie */ }
+    return 'ok';
+  } catch (e) { return 'err'; /* réseau momentanément indisponible : on réessaie */ }
+}
+async function live() {
+  for (;;) {
+    const t0 = performance.now();
+    const res = await poll(false, lastVersion);
+    if (res !== 'ok') await sleep(res === 'gone' ? 5000 : 1500);
+    else if (performance.now() - t0 < 150) await sleep(150);
+  }
 }
 if (!CODE) location.href = '/';
 window.addEventListener('resize', () => { if (S && S.me) refreshMine(); });
-poll(true);
-setInterval(poll, 1000);
-setInterval(() => { if (!drag) lastVersion = -1; }, 5000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(true); });
+poll(true).then(live);
+setInterval(() => { if (!drag && !busy) poll(true); }, 10000);  // rafraîchit les pastilles "connecté"
 </script>
 </body>
 </html>

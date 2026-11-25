@@ -24,6 +24,8 @@ STREET_FR = {"preflop": "Préflop", "flop": "Flop", "turn": "Turn", "river": "Ri
 GAME_TTL = 24 * 3600
 
 LOCK = threading.Lock()
+CHANGED = threading.Condition(LOCK)  # signalé à chaque action, pour les mises à jour instantanées
+LONG_POLL = 15  # secondes d'attente max d'une requête d'état
 GAMES = {}
 
 
@@ -418,7 +420,7 @@ class Game:
                     "handBet": p["hand_bet"],
                     "folded": p["folded"],
                     "inHand": p["in_hand"],
-                    "online": now - p["last_seen"] < 8,
+                    "online": now - p["last_seen"] < LONG_POLL + 15,
                 }
                 for p in self.players
             ],
@@ -471,13 +473,26 @@ class Handler(BaseHTTPRequestHandler):
             q = parse_qs(url.query)
             code = (q.get("code") or [""])[0].upper()
             token = (q.get("token") or [""])[0]
-            with LOCK:
+            try:
+                since = int((q.get("since") or ["-1"])[0])
+            except ValueError:
+                since = -1
+            with CHANGED:
                 g = GAMES.get(code)
+                # Attente longue : si le client a déjà la dernière version, on attend
+                # qu'il se passe quelque chose (max LONG_POLL s) pour répondre tout de suite après.
+                deadline = time.time() + LONG_POLL
+                while g is not None and g.version == since and time.time() < deadline:
+                    CHANGED.wait(timeout=deadline - time.time())
+                    g = GAMES.get(code)
                 if not g:
-                    return self.send_json({"error": "Partie introuvable (elle a peut-être expiré)."}, 404)
-                st = g.public(token)
-                st["isHost"] = bool(token) and token == g.host_token
-                return self.send_json(st)
+                    st = None
+                else:
+                    st = g.public(token)
+                    st["isHost"] = bool(token) and token == g.host_token
+            if st is None:
+                return self.send_json({"error": "Partie introuvable (elle a peut-être expiré)."}, 404)
+            return self.send_json(st)
         self.send_json({"error": "Introuvable"}, 404)
 
     def do_POST(self):
@@ -487,8 +502,9 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError, json.JSONDecodeError):
             return self.send_json({"error": "Requête invalide."}, 400)
         try:
-            with LOCK:
+            with CHANGED:
                 result = self.route(urlparse(self.path).path, data)
+                CHANGED.notify_all()  # réveille les téléphones en attente
             self.send_json(result)
         except GameError as e:
             self.send_json({"error": str(e)}, 400)
