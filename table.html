@@ -480,7 +480,9 @@ function seatHTML(p, x, y) {
 }
 function renderTable() {
   const wrap = $('table');
-  const W = wrap.clientWidth, H = Math.round(Math.min(440, Math.max(330, W * 1.1)));
+  // la table prend la place restante entre le haut, le bandeau et la barre du bas
+  const avail = window.innerHeight - $('dock').offsetHeight - $('status').offsetHeight - 76;
+  const W = wrap.clientWidth, H = Math.round(Math.max(270, Math.min(440, W * 1.1, avail)));
   wrap.style.height = H + 'px';
   const cx = W / 2, cy = H / 2, rx = W / 2 - 36, ry = H / 2 - 38;
   const n = S.players.length, meIdx = Math.max(0, S.players.findIndex(p => p.id === S.me));
@@ -589,13 +591,13 @@ function renderStatus() {
   if (!S.handActive) {
     if (n < 2) {
       big = 'En attente des autres joueurs… ⏳';
-      small = host ? 'Envoie-leur le lien avec « ＋ Inviter ».' : `${esc(S.hostName)} va lancer la partie.`;
+      small = host ? 'Envoie-leur le lien avec le bouton en bas 👇' : `${esc(S.hostName)} va lancer la partie.`;
       if (host) btn = ['＋ Inviter des joueurs', 'gold', () => open('shareModal')];
     } else if (host) {
       cls = 'host';
       big = S.handNumber ? 'On remet ça ? 🃏' : `${n} joueurs à table. C'est parti ? 🃏`;
-      small = 'Distribue 2 cartes à chacun, puis lance la main.';
-      btn = [S.handNumber ? 'Lancer la main suivante' : 'Lancer la première main', 'gold', () => act('new_hand')];
+      small = 'Distribue 2 cartes à chacun, puis appuie sur le bouton en bas 👇';
+      btn = [S.handNumber ? '🃏 Lancer la main suivante' : '🃏 Lancer la première main', 'gold', () => act('new_hand')];
     } else {
       big = S.handNumber ? 'Main terminée' : 'La partie va commencer 🃏';
       small = `${esc(S.hostName)} va lancer ${S.handNumber ? 'la main suivante' : 'la première main'}.`;
@@ -609,17 +611,18 @@ function renderStatus() {
     small = m && m.inHand && !m.folded ? 'Attends ton tour.' : '';
   } else if (S.street !== 'river') {
     const [label, what] = NEXT[S.street];
-    if (host) { cls = 'host'; big = `Retourne ${what} !`; small = `Pose le ${label} au milieu, puis appuie.`; btn = [`🃏 ${label} dévoilé`, 'gold', () => act('next_street')]; }
+    if (host) { cls = 'host'; big = `Retourne ${what} !`; small = `Pose le ${label} au milieu, puis appuie sur le bouton en bas 👇`; btn = [`🃏 ${label} dévoilé`, 'gold', () => act('next_street')]; }
     else { big = 'Tour d\'enchères terminé'; small = `${esc(S.hostName)} retourne ${what}.`; }
   } else {
     cls = host ? 'host' : ''; big = 'Abattage ! Montrez vos cartes 👀';
-    small = host ? 'Qui a la meilleure main ?' : `${esc(S.hostName)} va désigner le gagnant.`;
+    small = host ? 'Qui a la meilleure main ? Désigne-le avec le bouton en bas 👇' :`${esc(S.hostName)} va désigner le gagnant.`;
     if (host) btn = ['🏆 Désigner le gagnant', 'gold', openWin];
   }
   $('status').className = 'status ' + cls;
-  $('status').innerHTML = `<div class="big">${big}</div>${small ? `<div class="small">${small}</div>` : ''}` + (btn ? `<button class="${btn[1]}" id="statusBtn">${btn[0]}</button>` : '');
-  if (btn) $('statusBtn').onclick = btn[2];
+  hostBtn = btn;  // affiché dans la barre du bas, toujours visible
+  $('status').innerHTML = `<div class="big">${big}</div>${small ? `<div class="small">${small}</div>` : ''}`;
 }
+let hostBtn = null;
 
 /* ================= MON PLATEAU ================= */
 function buildRack() {
@@ -650,6 +653,7 @@ function renderDock() {
   $('myStack').textContent = fmt(m.stack - pendingTotal());
   $('dock').classList.toggle('active', turn);
   $('rack').classList.toggle('idle', !turn);
+  $('rack').classList.toggle('hidden', !S.handActive);  // pas de main : rien à miser
   const left = m.stack - pendingTotal();
   $('rack').querySelectorAll('.chip').forEach(c => c.classList.toggle('off', denoms()[+c.dataset.i] > left));
   $('dragHint').classList.toggle('hidden', !(turn && !pending.length));
@@ -661,7 +665,10 @@ function renderDock() {
     const txt = !S.handActive ? 'En attente de la prochaine main…' : !m.inHand ? 'Tu joues à la prochaine main'
       : m.folded ? 'Tu es couché 🏳️ Prochaine main !' : m.stack === 0 ? 'Tapis ! Croise les doigts 🤞'
       : t ? `C'est au tour de ${esc(t.name)}…` : 'Tour terminé, carte suivante…';
-    acts.innerHTML = `<div class="waitmsg">${txt}</div>`;
+    if (hostBtn) {
+      acts.innerHTML = `<button class="${hostBtn[1]}" id="hostAct" style="font-size:18px;padding:16px 8px">${hostBtn[0]}</button>`;
+      $('hostAct').onclick = hostBtn[2];
+    } else acts.innerHTML = `<div class="waitmsg">${txt}</div>`;
     return;
   }
   $('myInfo').innerHTML = tc > 0 ? `À suivre<br><b>${fmt(Math.min(tc, m.stack))}</b>` : 'Rien à suivre';
@@ -707,7 +714,7 @@ async function onAction(a) {
     if (!ok) selfAnimated = false;
   }
 }
-function refreshMine() { renderTable(); renderDock(); }
+function refreshMine() { renderDock(); renderTable(); }
 
 /* ---------- Glisser un jeton ---------- */
 let drag = null;
@@ -715,7 +722,10 @@ function startDrag(e) {
   const src = e.currentTarget, i = +src.dataset.i, v = denoms()[i], m = me();
   if (!m) return;
   e.preventDefault();
-  if (!myTurn()) { src.classList.remove('shake'); void src.offsetWidth; src.classList.add('shake'); toast(S.handActive ? 'Attends ton tour 😉' : 'Aucune main en cours'); return; }
+  if (!myTurn()) { src.classList.remove('shake'); void src.offsetWidth; src.classList.add('shake'); const t = S.toAct && byId(S.toAct);
+    toast(!S.handActive ? (S.isHost ? 'Lance d\'abord la main avec le bouton en bas 👇' : `Attends que ${S.hostName} lance la main 🃏`)
+      : t ? `Attends ton tour 😉 C'est à ${t.name}.` : 'Attends la carte suivante 😉');
+    return; }
   if (pendingTotal() + v > m.stack) { src.classList.remove('shake'); void src.offsetWidth; src.classList.add('shake'); sfx.nope(); return; }
   const r = src.getBoundingClientRect();
   const ghost = src.cloneNode(true);
@@ -833,9 +843,9 @@ function render() {
   if (!myTurn()) pending = [];
   $('inviteBtn').classList.toggle('hidden', !S.isHost);
   $('menuBtn').classList.remove('hidden');
-  renderTable();
   renderStatus();
   renderDock();
+  renderTable();
   document.querySelector('main').style.paddingBottom = ($('dock').offsetHeight + 16) + 'px';
 }
 async function poll(force) {
