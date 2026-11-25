@@ -690,7 +690,10 @@ function renderDock() {
   $('rack').classList.toggle('hidden', !S.handActive);  // pas de main : rien à miser
   const left = m.stack - pendingTotal();
   $('rack').querySelectorAll('.chip').forEach(c => c.classList.toggle('off', denoms()[+c.dataset.i] > left));
-  $('dragHint').classList.toggle('hidden', !(turn && !pending.length));
+  $('dragHint').classList.toggle('hidden', !turn);
+  $('dragHint').textContent = !pending.length ? '👆 Glisse tes jetons sur la table pour miser'
+    : pendingInfo().ok ? '➕ Ajoute d\'autres jetons, ou touche le bouton pour envoyer tout de suite'
+    : '➕ Ajoute des jetons pour compléter ta mise';
 
   const acts = $('acts');
   if (!turn) {
@@ -714,7 +717,7 @@ function renderDock() {
     html = `<button class="ghost sm" data-a="undo" title="Reprendre le dernier jeton">↩</button>
             <button class="ghost sm" data-a="clear" title="Tout reprendre">✕</button>
             ${pi.ok
-              ? `<button class="gold auto" data-a="confirm">${pi.label}<i class="bar" style="animation-duration:${AUTO_MS}ms;animation-delay:-${Math.round(elapsed)}ms"></i></button>`
+              ? `<button class="gold auto" data-a="confirm">${pi.label}${autoTimer ? `<i class="bar" style="animation-duration:${AUTO_MS}ms;animation-delay:-${Math.round(elapsed)}ms"></i>` : ''}</button>`
               : `<button disabled>${pi.label}</button>`}`;
   } else if (tc > 0) {
     html = `<button class="red" data-a="fold">🏳️ Coucher</button>` +
@@ -728,8 +731,9 @@ function renderDock() {
 }
 function rackPoint() { return centerOf($('rack')); }
 
-/* Envoi automatique : la mise part AUTO_MS après le dernier jeton posé, si le montant est valable */
-const AUTO_MS = 700;
+/* Envoi automatique : la mise part AUTO_MS après le dernier jeton posé, si le montant est valable.
+   Le compte à rebours est en pause tant qu'on tient un jeton (pour faire 50 + 10, etc.). */
+const AUTO_MS = 1500;
 let autoTimer = null, autoStart = 0;
 function clearAuto() { clearTimeout(autoTimer); autoTimer = null; autoStart = 0; }
 function scheduleAuto() {
@@ -780,6 +784,7 @@ function startDrag(e) {
     return; }
   if (pendingTotal() + v > m.stack) { src.classList.remove('shake'); void src.offsetWidth; src.classList.add('shake'); sfx.nope(); return; }
   if (drag) abortDrag();  // un glisser précédent pas terminé (double tap, 2 doigts) : on le nettoie
+  if (autoTimer) { clearAuto(); renderDock(); }  // on tient un jeton : l'envoi attend qu'on le lâche
   const r = src.getBoundingClientRect();
   const ghost = src.cloneNode(true);
   ghost.classList.add('drag');
@@ -800,6 +805,7 @@ function detachDrag(d) {
 function abortDrag() {
   if (!drag) return;
   detachDrag(drag); drag.ghost.remove(); drag = null;
+  scheduleAuto();
   $('felt') && $('felt').classList.remove('hot');
 }
 /* Filet de sécurité : supprime tout jeton fantôme qui ne serait plus suivi */
@@ -836,8 +842,9 @@ function endDrag(e) {
   anim.onfinish = () => {
     d.ghost.remove();
     if (thrown && myTurn() && pendingTotal() + denoms()[d.i] <= me().stack) {
-      pending.push(d.i); sfx.clink(1); buzz(15); scheduleAuto(); refreshMine();
+      pending.push(d.i); sfx.clink(1); buzz(15);
     }
+    if (!drag) { scheduleAuto(); refreshMine(); }  // reprend le compte à rebours (sauf si un autre jeton est déjà en main)
   };
 }
 document.addEventListener('touchmove', e => { if (drag) e.preventDefault(); }, { passive: false });
