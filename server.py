@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Poker Jetons — serveur de jetons virtuels pour jouer au poker avec de vraies cartes.
+"""Pokapot — serveur de jetons virtuels pour jouer au poker avec de vraies cartes.
 
 Aucune dépendance : seulement Python 3 (déjà installé sur macOS).
 Lancer :  python3 server.py   puis ouvrir l'adresse affichée.
@@ -447,7 +447,7 @@ def cleanup():
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "PokerJetons/3.0"
+    server_version = "Pokapot/3.0"
 
     def log_message(self, fmt, *args):
         pass
@@ -471,11 +471,32 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def send_text(self, text, ctype):
+        body = text.encode()
+        self.send_response(200)
+        self.send_header("Content-Type", ctype + "; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def site_url(self):
+        """Adresse publique du site (https derrière l'hébergeur)."""
+        proto = self.headers.get("X-Forwarded-Proto", "http").split(",")[0].strip()
+        return f"{proto}://{self.headers.get('Host', 'localhost')}"
+
     def do_GET(self):
         url = urlparse(self.path)
         path = url.path
         if path in ("/", "/index.html"):
             return self.send_file("index.html")
+        if path == "/robots.txt":  # pour Google : la page d'accueil oui, les parties privées non
+            return self.send_text(
+                f"User-agent: *\nAllow: /\nDisallow: /g/\nDisallow: /api/\nSitemap: {self.site_url()}/sitemap.xml\n", "text/plain")
+        if path == "/sitemap.xml":
+            return self.send_text(
+                '<?xml version="1.0" encoding="UTF-8"?>\n'
+                '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+                f"<url><loc>{self.site_url()}/</loc></url></urlset>\n", "application/xml")
         if path.startswith("/g/"):
             return self.send_file("table.html")
         if path == "/api/info":
@@ -583,7 +604,7 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     srv = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     ip = lan_ip()
-    print("\n  ♠ ♥  Poker Jetons est lancé  ♦ ♣\n")
+    print("\n  ♠ ♥  Pokapot est lancé  ♦ ♣\n")
     print(f"  Sur cet ordinateur :      http://localhost:{PORT}")
     print(f"  Depuis les téléphones :   http://{ip}:{PORT}   (même Wi-Fi)\n")
     print("  Ctrl+C pour arrêter.\n")
