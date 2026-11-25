@@ -16,7 +16,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 PORT = int(os.environ.get("PORT", sys.argv[1] if len(sys.argv) > 1 else 8000))
-STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+BASE = os.path.dirname(os.path.abspath(__file__))
+# Les pages peuvent être dans static/ ou directement à côté de server.py
+STATIC = os.path.join(BASE, "static") if os.path.isfile(os.path.join(BASE, "static", "table.html")) else BASE
 STREETS = ["preflop", "flop", "turn", "river"]
 GAME_TTL = 24 * 3600
 
