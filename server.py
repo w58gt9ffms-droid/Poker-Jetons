@@ -137,8 +137,9 @@ class Game:
         return False
 
     # ---------- joueurs ----------
-    def join(self, name):
+    def join(self, name, avatar=""):
         name = (name or "").strip()[:20]
+        avatar = str(avatar or "").strip()[:8]
         if not name:
             raise GameError("Choisis un pseudo.")
         if any(p["name"].lower() == name.lower() for p in self.players):
@@ -149,6 +150,7 @@ class Game:
             "id": secrets.token_hex(4),
             "token": secrets.token_urlsafe(16),
             "name": name,
+            "avatar": avatar,
             "stack": self.start_stack,
             "street_bet": 0,
             "hand_bet": 0,
@@ -410,6 +412,7 @@ class Game:
                 {
                     "id": p["id"],
                     "name": p["name"],
+                    "avatar": p["avatar"],
                     "stack": p["stack"],
                     "streetBet": p["street_bet"],
                     "handBet": p["hand_bet"],
@@ -431,7 +434,7 @@ def cleanup():
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "PokerJetons/2.0"
+    server_version = "PokerJetons/3.0"
 
     def log_message(self, fmt, *args):
         pass
@@ -501,7 +504,7 @@ class Handler(BaseHTTPRequestHandler):
                 raise GameError("Tapis de départ invalide.")
             g = Game(stack)
             g.set_blinds(d.get("sb", 0) or 0, d.get("bb", 0) or 0)
-            p = g.join(d.get("name"))
+            p = g.join(d.get("name"), d.get("avatar"))
             g.host_token = p["token"]
             GAMES[g.code] = g
             g.bump()
@@ -513,7 +516,7 @@ class Handler(BaseHTTPRequestHandler):
             raise GameError("Partie introuvable (elle a peut-être expiré).")
 
         if path == "/api/join":
-            p = g.join(d.get("name"))
+            p = g.join(d.get("name"), d.get("avatar"))
             g.bump()
             return {"token": p["token"]}
 

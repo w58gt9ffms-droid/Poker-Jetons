@@ -3,73 +3,117 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0d3b2a">
+<meta name="theme-color" content="#0b2a1e">
 <title>Poker Jetons</title>
 <style>
-  :root { --felt:#0d3b2a; --felt2:#145c41; --card:#0a2e21; --line:#1f6b4d; --text:#f2f5f0; --muted:#9fc2b1; --gold:#f2c14e; --red:#e05a4f; }
-  * { box-sizing:border-box; }
-  body { margin:0; min-height:100vh; font-family:-apple-system, system-ui, "Segoe UI", Roboto, sans-serif; color:var(--text);
-         background:radial-gradient(ellipse at top, var(--felt2), var(--felt) 70%); background-attachment:fixed; }
-  main { max-width:440px; margin:0 auto; padding:32px 16px 48px; }
-  h1 { font-size:34px; margin:8px 0 4px; letter-spacing:-.5px; }
+  :root { --card:#0a2e21; --row:#0f3d2c; --line:#1f6b4d; --text:#f2f5f0; --muted:#9fc2b1; --gold:#f2c14e; --red:#e05a4f; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; min-height:100vh; font-family:-apple-system, system-ui, "Segoe UI", Roboto, sans-serif; color:var(--text); overflow-x:hidden;
+         background:radial-gradient(ellipse at top, #1f8a5b, #0b2a1e 70%); background-attachment:fixed; }
+  main { position:relative; z-index:1; max-width:440px; margin:0 auto; padding:28px 16px 48px; }
+  .hero { text-align:center; margin-bottom:22px; }
+  .hero .chips { display:flex; justify-content:center; gap:0; margin-bottom:10px; }
+  .hero .chips i { margin:0 -6px; animation:hop 2.4s ease-in-out infinite; }
+  .hero .chips i:nth-child(2) { animation-delay:.2s; } .hero .chips i:nth-child(3) { animation-delay:.4s; } .hero .chips i:nth-child(4) { animation-delay:.6s; }
+  @keyframes hop { 0%, 60%, 100% { transform:translateY(0); } 30% { transform:translateY(-14px) rotate(20deg); } }
+  h1 { font-size:38px; margin:0; letter-spacing:-.5px; font-weight:900; text-shadow:0 3px 0 rgba(0,0,0,.3); }
   h1 span { color:var(--gold); }
-  .sub { color:var(--muted); margin:0 0 28px; line-height:1.45; }
-  .panel { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px; margin-bottom:16px; }
-  h2 { font-size:17px; margin:0 0 14px; }
+  .sub { color:var(--muted); margin:8px 0 0; line-height:1.45; }
+  .chip { display:inline-block; width:48px; height:48px; border-radius:50%; position:relative;
+          background:repeating-conic-gradient(var(--s) 0 15deg, var(--c) 15deg 45deg); box-shadow:0 3px 0 rgba(0,0,0,.4), 0 8px 14px rgba(0,0,0,.35); }
+  .chip::before { content:""; position:absolute; inset:7px; border-radius:50%; background:var(--c); border:2px dashed rgba(255,255,255,.7); }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:20px; padding:18px; margin-bottom:16px; box-shadow:0 10px 30px rgba(0,0,0,.3); }
+  h2 { font-size:18px; margin:0 0 12px; }
   label { display:block; font-size:13px; color:var(--muted); margin:12px 0 6px; }
-  input { width:100%; font-size:17px; padding:12px 14px; border-radius:10px; border:1px solid var(--line); background:#06231a; color:var(--text); outline:none; }
+  input { width:100%; font-size:17px; padding:12px 14px; border-radius:12px; border:1px solid var(--line); background:#06231a; color:var(--text); outline:none; }
   input:focus { border-color:var(--gold); }
   .row { display:flex; gap:10px; }
   .row > div { flex:1; }
-  button { width:100%; margin-top:18px; padding:14px; font-size:17px; font-weight:700; border:0; border-radius:12px; cursor:pointer;
-           background:var(--gold); color:#2a1d00; }
-  button.secondary { background:transparent; color:var(--text); border:1px solid var(--line); }
+  .emojis { display:grid; grid-template-columns:repeat(8,1fr); gap:6px; }
+  .emojis button { font-size:24px; padding:6px 0; margin:0; background:var(--row); border:2px solid transparent; border-radius:12px; box-shadow:none; }
+  .emojis button.sel { border-color:var(--gold); background:#2b3a17; }
+  .presets { display:flex; gap:6px; flex-wrap:wrap; }
+  .presets button { flex:1; margin:0; padding:10px 4px; font-size:14px; background:var(--row); border:2px solid transparent; color:var(--text); box-shadow:none; }
+  .presets button.sel { border-color:var(--gold); }
+  button { width:100%; margin-top:18px; padding:15px; font-size:18px; font-weight:900; border:0; border-radius:14px; cursor:pointer;
+           background:linear-gradient(#f7d06a,#e6ad2f); color:#2a1d00; box-shadow:0 4px 0 #9c7415; font-family:inherit; }
+  button:active { transform:translateY(3px); box-shadow:0 1px 0 #9c7415; }
+  button.secondary { background:rgba(255,255,255,.06); color:var(--text); border:1px solid var(--line); box-shadow:none; }
   button:disabled { opacity:.6; }
+  details summary { cursor:pointer; color:var(--muted); font-size:14px; margin-top:14px; }
   .err { color:var(--red); font-size:14px; margin-top:10px; min-height:1em; }
   .hint { font-size:12px; color:var(--muted); margin-top:6px; }
-  .suits { font-size:22px; letter-spacing:6px; color:var(--muted); }
-  .suits b { color:var(--red); font-weight:400; }
+  .bgchip { position:fixed; z-index:0; opacity:.18; animation:float 14s linear infinite; }
+  @keyframes float { from { transform:translateY(110vh) rotate(0); } to { transform:translateY(-20vh) rotate(540deg); } }
 </style>
 </head>
 <body>
 <main>
-  <div class="suits">♠<b>♥</b>♣<b>♦</b></div>
-  <h1>Poker <span>Jetons</span></h1>
-  <p class="sub">Vous avez les cartes, on s'occupe des jetons. Chacun mise depuis son téléphone, le pot est partagé en direct.</p>
+  <div class="hero">
+    <div class="chips">
+      <i class="chip" style="--c:#d63a3a;--s:#fff"></i><i class="chip" style="--c:#2a9d5c;--s:#fff"></i><i class="chip" style="--c:#23272e;--s:#d9d9d9"></i><i class="chip" style="--c:#7c3fb5;--s:#f2c14e"></i>
+    </div>
+    <h1>Poker <span>Jetons</span></h1>
+    <p class="sub">Vous avez les cartes, on s'occupe des jetons.<br>Chacun glisse ses jetons depuis son téléphone 📱</p>
+  </div>
 
   <form class="panel" id="create">
-    <h2>Créer une partie</h2>
+    <h2>🃏 Créer une table</h2>
     <label for="name">Ton pseudo</label>
     <input id="name" maxlength="20" autocomplete="nickname" required placeholder="ex. Camille">
-    <label for="stack">Jetons de départ par joueur</label>
-    <input id="stack" type="number" inputmode="numeric" min="1" value="1000" required>
-    <div class="row">
-      <div><label for="sb">Petite blinde</label><input id="sb" type="number" inputmode="numeric" min="0" value="10"></div>
-      <div><label for="bb">Grosse blinde</label><input id="bb" type="number" inputmode="numeric" min="0" value="20"></div>
+    <label>Ton avatar</label>
+    <div class="emojis" id="emojis"></div>
+    <label>Jetons de départ par joueur</label>
+    <div class="presets" id="stackPresets">
+      <button type="button" data-v="500">500</button><button type="button" data-v="1000" class="sel">1 000</button>
+      <button type="button" data-v="2000">2 000</button><button type="button" data-v="5000">5 000</button>
     </div>
-    <div class="hint">Mets 0 pour jouer sans blindes automatiques.</div>
-    <button type="submit">Créer la table</button>
+    <details>
+      <summary>Réglages avancés (blindes, montant libre)</summary>
+      <label for="stack">Jetons de départ</label>
+      <input id="stack" type="number" inputmode="numeric" min="1" value="1000" required>
+      <div class="row">
+        <div><label for="sb">Petite blinde</label><input id="sb" type="number" inputmode="numeric" min="0" value="10"></div>
+        <div><label for="bb">Grosse blinde</label><input id="bb" type="number" inputmode="numeric" min="0" value="20"></div>
+      </div>
+      <div class="hint">Les blindes sont prélevées automatiquement à chaque main. Mets 0 pour jouer sans.</div>
+    </details>
+    <button type="submit">Créer la table 🎉</button>
     <div class="err" id="createErr"></div>
   </form>
 
   <form class="panel" id="join">
-    <h2>Rejoindre avec un code</h2>
+    <h2>🔑 Rejoindre avec un code</h2>
     <input id="code" maxlength="6" placeholder="ex. K7MPQ3" autocapitalize="characters" style="text-transform:uppercase;letter-spacing:3px">
     <button type="submit" class="secondary">Rejoindre</button>
   </form>
 </main>
 <script>
   const $ = id => document.getElementById(id);
+  const EMOJIS = ['🦊','🐼','🐸','🦁','🐯','🐵','🐙','🦄','🐲','🤠','😎','🤖','👻','🐧','🦈','🍀'];
+  let emoji = localStorage.getItem('pj_avatar') || EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
+  $('emojis').innerHTML = EMOJIS.map(e => `<button type="button" class="${e === emoji ? 'sel' : ''}">${e}</button>`).join('');
+  $('emojis').querySelectorAll('button').forEach(b => b.onclick = () => {
+    emoji = b.textContent; $('emojis').querySelectorAll('button').forEach(x => x.classList.toggle('sel', x === b));
+  });
+  const blindsFor = s => ({ 500: [5, 10], 1000: [10, 20], 2000: [10, 20], 5000: [25, 50] }[s]);
+  $('stackPresets').querySelectorAll('button').forEach(b => b.onclick = () => {
+    $('stackPresets').querySelectorAll('button').forEach(x => x.classList.toggle('sel', x === b));
+    $('stack').value = b.dataset.v; const [sb, bb] = blindsFor(b.dataset.v); $('sb').value = sb; $('bb').value = bb;
+  });
+  $('stack').oninput = () => $('stackPresets').querySelectorAll('button').forEach(x => x.classList.toggle('sel', x.dataset.v === $('stack').value));
   $('name').value = localStorage.getItem('pj_name') || '';
+
   $('create').onsubmit = async e => {
     e.preventDefault();
-    const btn = e.target.querySelector('button'); btn.disabled = true; $('createErr').textContent = '';
+    const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true; $('createErr').textContent = '';
     try {
       const r = await fetch('/api/create', { method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ name:$('name').value, stack:$('stack').value, sb:$('sb').value||0, bb:$('bb').value||0 }) });
+        body: JSON.stringify({ name:$('name').value, avatar:emoji, stack:$('stack').value, sb:$('sb').value||0, bb:$('bb').value||0 }) });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error);
       localStorage.setItem('pj_name', $('name').value.trim());
+      localStorage.setItem('pj_avatar', emoji);
       localStorage.setItem('pj_' + d.code, d.token);
       location.href = '/g/' + d.code;
     } catch (err) { $('createErr').textContent = err.message || 'Erreur réseau'; btn.disabled = false; }
@@ -79,6 +123,15 @@
     const c = $('code').value.trim().toUpperCase();
     if (c) location.href = '/g/' + c;
   };
+
+  // jetons qui flottent en fond
+  const cols = [['#d63a3a','#fff'],['#2a9d5c','#fff'],['#23272e','#d9d9d9'],['#7c3fb5','#f2c14e'],['#f2f2f2','#2f6fc0']];
+  for (let k = 0; k < 9; k++) {
+    const c = document.createElement('i'); const [cc, ss] = cols[k % cols.length];
+    c.className = 'chip bgchip';
+    c.style.cssText = `--c:${cc};--s:${ss};left:${Math.random() * 95}vw;animation-duration:${10 + Math.random() * 10}s;animation-delay:${-Math.random() * 20}s;transform:scale(${.6 + Math.random() * .6})`;
+    document.body.appendChild(c);
+  }
 </script>
 </body>
 </html>
