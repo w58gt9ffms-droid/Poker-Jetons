@@ -26,6 +26,7 @@ GAME_TTL = 24 * 3600
 LOCK = threading.Lock()
 CHANGED = threading.Condition(LOCK)  # signalé à chaque action, pour les mises à jour instantanées
 LONG_POLL = 15  # secondes d'attente max d'une requête d'état
+OFFLINE_AFTER = LONG_POLL + 15  # sans nouvelles depuis ce délai = joueur déconnecté
 GAMES = {}
 
 
@@ -144,8 +145,18 @@ class Game:
         avatar = str(avatar or "").strip()[:8]
         if not name:
             raise GameError("Choisis un pseudo.")
-        if any(p["name"].lower() == name.lower() for p in self.players):
-            raise GameError("Ce pseudo est déjà pris à cette table.")
+        same = next((p for p in self.players if p["name"].lower() == name.lower()), None)
+        if same:
+            # Même pseudo : si ce joueur n'est plus connecté (téléphone changé, page effacée…),
+            # on lui rend sa place, ses jetons et son rôle d'organisateur.
+            if time.time() - same["last_seen"] > OFFLINE_AFTER:
+                same["last_seen"] = time.time()
+                if avatar:
+                    same["avatar"] = avatar
+                self.add_log(f"{same['name']} reprend sa place.")
+                return same
+            raise GameError("Ce pseudo est déjà utilisé par un joueur connecté. "
+                            "Si c'est toi sur un autre appareil, réessaie dans 30 secondes.")
         if len(self.players) >= 12:
             raise GameError("Table pleine (12 joueurs max).")
         p = {
@@ -420,7 +431,7 @@ class Game:
                     "handBet": p["hand_bet"],
                     "folded": p["folded"],
                     "inHand": p["in_hand"],
-                    "online": now - p["last_seen"] < LONG_POLL + 15,
+                    "online": now - p["last_seen"] < OFFLINE_AFTER,
                 }
                 for p in self.players
             ],

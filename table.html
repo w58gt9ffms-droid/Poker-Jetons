@@ -916,13 +916,17 @@ function render() {
 }
 /* since = version que j'ai déjà : le serveur attend qu'il se passe quelque chose avant de répondre */
 async function poll(force, since = -1) {
+  const asked = token || '';  // le jeton avec lequel CETTE requête a été faite
   try {
-    const r = await fetch(`/api/state?code=${encodeURIComponent(CODE)}&token=${encodeURIComponent(token || '')}&since=${since}`, { cache: 'no-store' });
+    const r = await fetch(`/api/state?code=${encodeURIComponent(CODE)}&token=${encodeURIComponent(asked)}&since=${since}`, { cache: 'no-store' });
     const d = await r.json();
+    // Réponse à une question posée avant de s'asseoir (ou avec un autre jeton) : on l'ignore,
+    // sinon la page croirait à tort qu'on a été retiré de la table.
+    if (asked !== (token || '')) return 'ok';
     if (r.status === 404) { open('notFound'); close('joinView'); close('tableView'); close('dock'); return 'gone'; }
     if (!d.me) {
       S = d; lastVersion = d.version;
-      if (token) { localStorage.removeItem(KEY); token = null; open('kickedMsg'); document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden')); }
+      if (asked) { localStorage.removeItem(KEY); token = null; open('kickedMsg'); document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden')); }
       open('joinView'); close('tableView'); close('dock'); $('menuBtn').classList.add('hidden'); $('inviteBtn').classList.add('hidden');
       return 'ok';
     }
