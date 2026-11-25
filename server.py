@@ -22,6 +22,8 @@ STATIC = os.path.join(BASE, "static") if os.path.isfile(os.path.join(BASE, "stat
 STREETS = ["preflop", "flop", "turn", "river"]
 STREET_FR = {"preflop": "Préflop", "flop": "Flop", "turn": "Turn", "river": "River"}
 GAME_TTL = 24 * 3600
+# Fichier de validation Google Search Console (prouve que le site nous appartient — ne pas supprimer)
+GOOGLE_VERIFY = "google1987938852cc0201.html"
 
 LOCK = threading.Lock()
 CHANGED = threading.Condition(LOCK)  # signalé à chaque action, pour les mises à jour instantanées
@@ -489,6 +491,8 @@ class Handler(BaseHTTPRequestHandler):
         path = url.path
         if path in ("/", "/index.html"):
             return self.send_file("index.html")
+        if path == "/" + GOOGLE_VERIFY:
+            return self.send_text(f"google-site-verification: {GOOGLE_VERIFY}", "text/html")
         if path == "/robots.txt":  # pour Google : la page d'accueil oui, les parties privées non
             return self.send_text(
                 f"User-agent: *\nAllow: /\nDisallow: /g/\nDisallow: /api/\nSitemap: {self.site_url()}/sitemap.xml\n", "text/plain")
