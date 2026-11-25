@@ -123,6 +123,10 @@
   .acts button { flex:1; font-size:16px; padding:14px 6px; line-height:1.1; }
   .acts button small { display:block; font-size:11px; font-weight:600; opacity:.85; margin-top:2px; }
   .acts button.sm { flex:0 0 54px; font-size:20px; }
+  .acts button.auto { position:relative; overflow:hidden; }
+  .acts button.auto .bar { position:absolute; left:0; bottom:0; height:5px; width:100%; background:rgba(42,29,0,.55); transform-origin:left;
+                           animation:drain linear forwards; }
+  @keyframes drain { from { transform:scaleX(1); } to { transform:scaleX(0); } }
   .waitmsg { flex:1; text-align:center; color:var(--muted); padding:10px 0 6px; font-size:15px; }
 
   /* Bulles, fête */
@@ -210,7 +214,7 @@
       <div class="c" id="myInfo"></div>
     </div>
     <div class="rack idle" id="rack"></div>
-    <div class="hint2 hidden" id="dragHint">👆 Glisse tes jetons vers la table pour miser</div>
+    <div class="hint2 hidden" id="dragHint">👆 Glisse tes jetons sur la table pour miser</div>
     <div class="acts" id="acts"></div>
   </div>
 </div>
@@ -675,9 +679,13 @@ function renderDock() {
   let html = '';
   if (pending.length) {
     const pi = pendingInfo();
+    // mise valide : elle part toute seule à la fin de la barre (on peut encore ajouter un jeton ou annuler)
+    const elapsed = autoStart ? performance.now() - autoStart : 0;
     html = `<button class="ghost sm" data-a="undo" title="Reprendre le dernier jeton">↩</button>
             <button class="ghost sm" data-a="clear" title="Tout reprendre">✕</button>
-            <button class="${pi.ok ? 'gold' : ''}" data-a="confirm" ${pi.ok ? '' : 'disabled'}>${pi.label}</button>`;
+            ${pi.ok
+              ? `<button class="gold auto" data-a="confirm">${pi.label}<i class="bar" style="animation-duration:${AUTO_MS}ms;animation-delay:-${Math.round(elapsed)}ms"></i></button>`
+              : `<button disabled>${pi.label}</button>`}`;
   } else if (tc > 0) {
     html = `<button class="red" data-a="fold">🏳️ Coucher</button>` +
       (tc >= m.stack ? `<button class="gold" data-a="allin">💥 Tapis ${fmt(m.stack)}</button>` : `<button class="blue" data-a="call">👍 Suivre ${fmt(tc)}</button>`);
@@ -689,18 +697,30 @@ function renderDock() {
   acts.querySelectorAll('button').forEach(b => b.onclick = () => onAction(b.dataset.a));
 }
 function rackPoint() { return centerOf($('rack')); }
+
+/* Envoi automatique : la mise part AUTO_MS après le dernier jeton posé, si le montant est valable */
+const AUTO_MS = 1000;
+let autoTimer = null, autoStart = 0;
+function clearAuto() { clearTimeout(autoTimer); autoTimer = null; autoStart = 0; }
+function scheduleAuto() {
+  clearAuto();
+  if (!pending.length || !myTurn() || !pendingInfo().ok) return;
+  autoStart = performance.now();
+  autoTimer = setTimeout(() => { autoTimer = null; onAction('confirm'); }, AUTO_MS);
+}
+
 async function onAction(a) {
   const m = me(); if (!m) return;
   if (a === 'undo' || a === 'clear') {
+    clearAuto();
     const back = a === 'undo' ? [pending.pop()] : pending.splice(0);
     const from = geoPoint('bet', m.id);
     back.forEach((i, k) => { const ch = $('rack').querySelector(`.chip[data-i="${i}"]`); fly(from, ch ? centerOf(ch) : rackPoint(), i, { size: 30, delay: k * 60 }); });
-    sfx.clink(1); refreshMine(); return;
+    sfx.clink(1); scheduleAuto(); refreshMine(); return;
   }
   if (a === 'check') return act('check');
-  if (a === 'fold') { if (confirm('Te coucher ? Tu perds ce que tu as déjà misé dans cette main.')) act('fold'); return; }
+  if (a === 'fold') return act('fold');
   if (a === 'call' || a === 'allin') {
-    if (a === 'allin' && !confirm(`Faire tapis avec ${fmt(m.stack)} jetons ? 💥`)) return;
     const amt = a === 'call' ? Math.min(toCallOf(m), m.stack) : m.stack;
     flyAmount(rackPoint(), geoPoint('bet', m.id), amt, { size: 28 }); sfx.clink(3); buzz(25);
     selfAnimated = true; await sleep(380);
@@ -708,6 +728,8 @@ async function onAction(a) {
     return;
   }
   if (a === 'confirm') {
+    clearAuto();
+    if (!pending.length || !myTurn()) return;
     const pi = pendingInfo(); if (!pi.ok) return;
     selfAnimated = true;
     const ok = await act(pi.type, pi.type === 'bet' ? { amount: pi.amount } : {});
@@ -770,7 +792,7 @@ function endDrag(e) {
   anim.onfinish = () => {
     d.ghost.remove();
     if (thrown && myTurn() && pendingTotal() + denoms()[d.i] <= me().stack) {
-      pending.push(d.i); sfx.clink(1); buzz(15); refreshMine();
+      pending.push(d.i); sfx.clink(1); buzz(15); scheduleAuto(); refreshMine();
     }
   };
 }
@@ -840,7 +862,7 @@ $('blindsOk').onclick = async () => { if (await act('set_blinds', { sb: $('sbIn'
 /* ================= BOUCLE ================= */
 function render() {
   close('joinView'); close('notFound'); open('tableView');
-  if (!myTurn()) pending = [];
+  if (!myTurn()) { pending = []; clearAuto(); }
   $('inviteBtn').classList.toggle('hidden', !S.isHost);
   $('menuBtn').classList.remove('hidden');
   renderStatus();
