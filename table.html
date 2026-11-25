@@ -7,110 +7,119 @@
 <title>Table de poker</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
-  :root { --felt:#0d3b2a; --felt2:#145c41; --card:#0a2e21; --line:#1f6b4d; --text:#f2f5f0; --muted:#9fc2b1;
-          --gold:#f2c14e; --red:#e05a4f; --blue:#5aa9e6; }
+  :root { --felt:#0d3b2a; --felt2:#145c41; --card:#0a2e21; --row:#0f3d2c; --line:#1f6b4d; --text:#f2f5f0; --muted:#9fc2b1;
+          --gold:#f2c14e; --red:#e05a4f; --blue:#5aa9e6; --green:#3fbf7f; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   body { margin:0; min-height:100vh; font-family:-apple-system, system-ui, "Segoe UI", Roboto, sans-serif; color:var(--text);
          background:radial-gradient(ellipse at top, var(--felt2), var(--felt) 70%); background-attachment:fixed; }
-  main { max-width:520px; margin:0 auto; padding:14px 16px 300px; }
+  main { max-width:520px; margin:0 auto; padding:12px 16px 220px; }
   .hidden { display:none !important; }
   .panel { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px; margin-bottom:12px; }
-  h2 { font-size:15px; margin:0 0 10px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.6px; }
+  h2 { font-size:13px; margin:0 0 10px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.6px; }
   input { width:100%; font-size:17px; padding:12px 14px; border-radius:10px; border:1px solid var(--line); background:#06231a; color:var(--text); outline:none; }
   input:focus { border-color:var(--gold); }
-  button { font:inherit; font-weight:700; border:0; border-radius:12px; cursor:pointer; padding:13px 10px; color:var(--text); background:#1a5a42; }
+  button { font:inherit; font-weight:700; border:0; border-radius:12px; cursor:pointer; padding:14px 10px; color:var(--text); background:#1d6148; }
   button:disabled { opacity:.4; cursor:default; }
   button.gold { background:var(--gold); color:#2a1d00; }
   button.red { background:var(--red); color:#fff; }
   button.ghost { background:transparent; border:1px solid var(--line); }
+  button.link { background:none; padding:6px 4px; color:var(--muted); font-weight:500; font-size:14px; text-decoration:underline; }
   .err { color:var(--red); font-size:14px; min-height:1em; margin-top:8px; }
   a { color:var(--gold); }
 
-  /* En-tête */
   .top { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; }
   .top a.home { color:var(--muted); text-decoration:none; font-size:14px; }
-  .code { font-family:ui-monospace, Menlo, monospace; letter-spacing:2px; background:var(--card); border:1px solid var(--line); padding:6px 10px; border-radius:8px; font-size:14px; }
-  .pot { text-align:center; padding:18px 10px 16px; }
-  .pot .lbl { color:var(--muted); font-size:13px; text-transform:uppercase; letter-spacing:1px; }
-  .pot .val { font-size:52px; font-weight:800; color:var(--gold); line-height:1.1; font-variant-numeric:tabular-nums; }
-  .pot .meta { color:var(--muted); font-size:14px; }
-  .streets { display:flex; justify-content:center; gap:6px; margin-top:10px; }
+  .top button { padding:8px 14px; font-size:14px; }
+
+  /* Pot */
+  .pot { text-align:center; padding:14px 10px; }
+  .pot .lbl { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:1px; }
+  .pot .val { font-size:48px; font-weight:800; color:var(--gold); line-height:1.1; font-variant-numeric:tabular-nums; }
+  .streets { display:flex; justify-content:center; gap:6px; margin-top:8px; }
   .streets span { font-size:12px; padding:4px 9px; border-radius:20px; border:1px solid var(--line); color:var(--muted); }
   .streets span.on { background:var(--gold); color:#2a1d00; border-color:var(--gold); font-weight:700; }
+  .streets span.done { color:var(--text); }
+
+  /* Bandeau "quoi faire" */
+  .status { border-radius:16px; padding:16px; margin-bottom:12px; text-align:center; border:2px solid var(--line); background:var(--card); }
+  .status .big { font-size:21px; font-weight:800; line-height:1.25; }
+  .status .small { font-size:15px; color:var(--muted); margin-top:6px; line-height:1.4; }
+  .status .last { font-size:13px; color:var(--muted); margin-top:10px; padding-top:10px; border-top:1px solid var(--line); }
+  .status.mine { border-color:var(--blue); background:#0c2f40; animation:pulse 1.6s ease-in-out infinite; }
+  .status.mine .big { color:var(--blue); }
+  .status.host { border-color:var(--gold); }
+  .status.host .big { color:var(--gold); }
+  .status.win .big { color:var(--gold); }
+  .status button { width:100%; margin-top:12px; font-size:17px; }
+  @keyframes pulse { 50% { box-shadow:0 0 0 6px rgba(90,169,230,.18); } }
 
   /* Joueurs */
   .players { display:flex; flex-direction:column; gap:6px; }
-  .pl { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:12px; background:#0d3a2a; border:1px solid transparent; }
-  .pl.me { border-color:var(--gold); }
-  .pl.turn { box-shadow:0 0 0 2px var(--blue) inset; }
+  .pl { display:flex; align-items:center; gap:10px; padding:11px 12px; border-radius:12px; background:var(--row); border:2px solid transparent; }
+  .pl.me { border-color:rgba(242,193,78,.55); }
+  .pl.turn { border-color:var(--blue); background:#0c2f40; }
   .pl.folded { opacity:.45; }
+  .pl.tap { cursor:pointer; }
   .pl .name { flex:1; min-width:0; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .pl .name small { color:var(--muted); font-weight:400; }
-  .pl .stack { font-variant-numeric:tabular-nums; font-weight:700; text-align:right; }
-  .pl .bet { font-variant-numeric:tabular-nums; font-size:13px; color:var(--gold); min-width:56px; text-align:right; }
-  .dot { width:8px; height:8px; border-radius:50%; background:#3b6; flex:none; }
+  .pl .stack { font-variant-numeric:tabular-nums; font-weight:700; text-align:right; min-width:60px; }
+  .pl .bet { font-variant-numeric:tabular-nums; font-size:13px; font-weight:700; color:#2a1d00; background:var(--gold); border-radius:20px; padding:2px 8px; }
+  .pl .more { color:var(--muted); font-size:18px; }
+  .dot { width:8px; height:8px; border-radius:50%; background:var(--green); flex:none; }
   .dot.off { background:#555; }
-  .badge { display:inline-block; font-size:11px; font-weight:800; padding:2px 6px; border-radius:6px; margin-left:4px; vertical-align:1px; }
+  .badge { display:inline-block; font-size:11px; font-weight:800; padding:2px 6px; border-radius:6px; margin-left:5px; vertical-align:1px; }
   .badge.d { background:#fff; color:#111; }
   .badge.f { background:#333; color:#bbb; }
   .badge.a { background:var(--red); color:#fff; }
-  .badge.t { background:var(--blue); color:#012; }
+  .hint { font-size:13px; color:var(--muted); margin-top:8px; text-align:center; }
 
-  /* Partage */
-  .share { display:flex; gap:14px; align-items:center; }
-  .share #qr { background:#fff; padding:8px; border-radius:10px; flex:none; }
-  .share #qr img, .share #qr canvas { display:block; width:120px; height:120px; }
-  .share .link { font-family:ui-monospace, Menlo, monospace; font-size:13px; word-break:break-all; color:var(--text); margin-bottom:10px; }
-  .share .btns { display:flex; gap:8px; flex-wrap:wrap; }
-  .share .btns button { padding:9px 12px; font-size:14px; }
+  details summary { cursor:pointer; color:var(--muted); font-size:14px; }
+  .log { font-size:13px; color:var(--muted); display:flex; flex-direction:column; gap:4px; margin-top:10px; }
 
-  /* Organisateur */
-  .host-btns { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-  .host-btns .full { grid-column:1 / -1; }
-  details summary { cursor:pointer; color:var(--muted); font-size:14px; margin-top:10px; }
-  .mgr { display:flex; gap:8px; align-items:center; margin-top:8px; }
-  .mgr .n { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .mgr input { width:100px; padding:8px; font-size:15px; }
-  .mgr button { padding:8px 10px; font-size:13px; }
-
-  /* Journal */
-  .log { font-size:13px; color:var(--muted); max-height:220px; overflow:auto; display:flex; flex-direction:column-reverse; gap:4px; }
-
-  /* Barre d'action */
+  /* Barre du bas */
   .dock { position:fixed; left:0; right:0; bottom:0; background:rgba(6,30,22,.97); border-top:1px solid var(--line);
-          padding:12px 16px calc(12px + env(safe-area-inset-bottom)); backdrop-filter:blur(8px); }
+          padding:12px 16px calc(12px + env(safe-area-inset-bottom)); backdrop-filter:blur(8px); z-index:5; }
   .dock-inner { max-width:520px; margin:0 auto; }
-  .mine { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; }
-  .mine .s { font-size:26px; font-weight:800; font-variant-numeric:tabular-nums; }
-  .mine .c { color:var(--muted); font-size:14px; text-align:right; }
-  .mine .c b { color:var(--gold); }
-  .turnmsg { text-align:center; font-weight:700; color:var(--blue); font-size:14px; margin-bottom:8px; }
-  .chips { display:grid; grid-template-columns:repeat(5, 1fr); gap:6px; margin-bottom:8px; }
-  .chips button { padding:10px 0; border-radius:50px; font-size:14px; border:2px dashed rgba(255,255,255,.35); }
-  .chips button:nth-child(1) { background:#e9e9e9; color:#222; }
-  .chips button:nth-child(2) { background:#c0392b; }
-  .chips button:nth-child(3) { background:#2c6fbb; }
-  .chips button:nth-child(4) { background:#1d1d1d; }
-  .chips button:nth-child(5) { background:#7d3c98; }
-  .amount { display:flex; gap:8px; margin-bottom:8px; }
-  .amount input { text-align:center; font-size:20px; font-weight:700; padding:10px; }
-  .amount button { flex:none; width:56px; }
-  .acts { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
-  .acts button { font-size:16px; padding:14px 6px; }
-  .wait { text-align:center; color:var(--muted); padding:8px 0; }
+  .mybar { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .mybar .s { font-size:24px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .mybar .l { font-size:11px; color:var(--muted); letter-spacing:.5px; }
+  .mybar .c { color:var(--muted); font-size:14px; text-align:right; }
+  .mybar .c b { color:var(--gold); font-size:18px; }
+  .acts { display:flex; gap:8px; margin-top:10px; }
+  .acts button { flex:1; font-size:17px; padding:16px 6px; line-height:1.15; }
+  .acts button small { display:block; font-size:12px; font-weight:500; opacity:.85; }
 
-  /* Modale */
+  /* Fenêtres */
   .modal { position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:flex-end; justify-content:center; z-index:10; }
-  .sheet { background:var(--card); border:1px solid var(--line); border-radius:20px 20px 0 0; width:100%; max-width:520px; padding:18px 16px calc(18px + env(safe-area-inset-bottom)); }
-  .sheet h3 { margin:0 0 6px; }
-  .sheet p { margin:0 0 12px; color:var(--muted); font-size:14px; }
-  .pick { display:flex; align-items:center; gap:12px; padding:12px; border-radius:12px; background:#0d3a2a; margin-bottom:6px; cursor:pointer; }
-  .pick input { width:22px; height:22px; accent-color:var(--gold); }
+  .sheet { background:var(--card); border:1px solid var(--line); border-radius:20px 20px 0 0; width:100%; max-width:520px;
+           padding:18px 16px calc(18px + env(safe-area-inset-bottom)); max-height:92vh; overflow:auto; }
+  .sheet h3 { margin:0 0 6px; font-size:20px; }
+  .sheet p { margin:0 0 12px; color:var(--muted); font-size:14px; line-height:1.4; }
   .sheet .row { display:flex; gap:8px; margin-top:12px; }
   .sheet .row button { flex:1; }
+  .sheet .stackbtn { width:100%; margin-top:8px; }
+  .pick { display:flex; align-items:center; gap:12px; padding:14px 12px; border-radius:12px; background:var(--row); margin-bottom:6px; cursor:pointer; }
+  .pick input { width:22px; height:22px; accent-color:var(--gold); flex:none; }
 
-  .toast { position:fixed; top:16px; left:50%; transform:translateX(-50%); background:var(--red); color:#fff; padding:10px 16px;
-           border-radius:10px; font-size:14px; z-index:20; max-width:90%; box-shadow:0 6px 20px rgba(0,0,0,.4); }
+  /* Mise */
+  .betval { text-align:center; margin:6px 0 2px; }
+  .betval .n { font-size:46px; font-weight:800; color:var(--gold); font-variant-numeric:tabular-nums; }
+  .betval .u { color:var(--muted); font-size:16px; }
+  .betsub { text-align:center; color:var(--muted); font-size:14px; min-height:1.3em; }
+  .stepper { display:flex; align-items:center; gap:10px; margin:14px 0 10px; }
+  .stepper button { width:52px; height:52px; padding:0; font-size:26px; border-radius:50%; flex:none; }
+  .stepper input[type=range] { flex:1; padding:0; border:0; background:none; accent-color:var(--gold); height:40px; }
+  .presets { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+  .presets button { padding:11px 2px; font-size:14px; background:var(--row); border:1px solid var(--line); }
+
+  /* Partage */
+  .share { text-align:center; }
+  .share #qr { background:#fff; padding:10px; border-radius:12px; display:inline-block; }
+  .share #qr img, .share #qr canvas { display:block; width:200px; height:200px; }
+  .share .link { font-family:ui-monospace, Menlo, monospace; font-size:13px; word-break:break-all; margin:12px 0; }
+
+  .toast { position:fixed; top:16px; left:50%; transform:translateX(-50%); background:var(--red); color:#fff; padding:12px 16px;
+           border-radius:10px; font-size:15px; z-index:20; max-width:92%; box-shadow:0 6px 20px rgba(0,0,0,.4); text-align:center; }
   .toast.ok { background:#2e8b57; }
 </style>
 </head>
@@ -118,13 +127,13 @@
 <main>
   <div class="top">
     <a class="home" href="/">← Accueil</a>
-    <span class="code" id="codeLbl"></span>
+    <button class="ghost hidden" id="inviteBtn">＋ Inviter</button>
   </div>
 
-  <!-- Écran pour rejoindre -->
   <div id="joinView" class="hidden">
     <form class="panel" id="joinForm">
       <h2>Rejoindre la table</h2>
+      <p id="kickedMsg" class="hidden" style="color:var(--red);margin-top:0">Tu as été retiré de la table.</p>
       <input id="joinName" maxlength="20" placeholder="Ton pseudo" autocomplete="nickname" required>
       <button class="gold" style="width:100%;margin-top:12px" type="submit">S'asseoir à la table</button>
       <div class="err" id="joinErr"></div>
@@ -132,110 +141,151 @@
   </div>
 
   <div id="notFound" class="panel hidden">
-    <p>Cette partie est introuvable. Elle a peut-être expiré ou le serveur a été redémarré.</p>
+    <p>Cette partie est introuvable. Elle a peut-être expiré ou le serveur a redémarré.</p>
     <a href="/">Créer une nouvelle partie</a>
   </div>
 
-  <!-- Table -->
   <div id="tableView" class="hidden">
     <div class="panel pot">
       <div class="lbl">Pot</div>
       <div class="val" id="pot">0</div>
-      <div class="meta" id="meta"></div>
       <div class="streets" id="streets"></div>
     </div>
 
-    <div class="panel hidden" id="hostPanel">
-      <h2>Organisateur</h2>
-      <div class="host-btns" id="hostBtns"></div>
-      <details>
-        <summary>Gérer les joueurs et les blindes</summary>
-        <div id="mgr"></div>
-        <div class="mgr">
-          <span class="n">Blindes</span>
-          <input id="sbIn" type="number" inputmode="numeric" min="0" style="width:70px">
-          <input id="bbIn" type="number" inputmode="numeric" min="0" style="width:70px">
-          <button id="blindsBtn">OK</button>
-        </div>
-      </details>
-    </div>
+    <div class="status" id="status"></div>
 
     <div class="panel">
-      <h2>Joueurs</h2>
+      <h2 id="playersTitle">Joueurs</h2>
       <div class="players" id="players"></div>
+      <div class="hint hidden" id="hostHint">Touche un joueur pour modifier ses jetons, le coucher ou le retirer.</div>
     </div>
 
-    <div class="panel" id="sharePanel">
-      <h2>Inviter des joueurs</h2>
-      <div class="share">
-        <div id="qr"></div>
-        <div style="min-width:0">
-          <div class="link" id="shareLink"></div>
-          <div class="btns">
-            <button class="gold" id="copyBtn">Copier le lien</button>
-            <button class="ghost hidden" id="nativeShare">Partager…</button>
-          </div>
-        </div>
+    <div class="panel hidden" id="hostExtra">
+      <h2>Organisateur</h2>
+      <div style="display:flex;flex-wrap:wrap;gap:4px 14px">
+        <button class="link" id="awardNow">Désigner le gagnant maintenant</button>
+        <button class="link" id="cancelHand">Annuler la main (rembourser)</button>
+        <button class="link" id="blindsLink">Changer les blindes</button>
       </div>
     </div>
 
     <div class="panel">
-      <h2>Historique</h2>
-      <div class="log" id="log"></div>
+      <details>
+        <summary>Historique de la partie</summary>
+        <div class="log" id="log"></div>
+      </details>
     </div>
   </div>
 </main>
 
+<!-- Barre du bas -->
 <div class="dock hidden" id="dock">
   <div class="dock-inner">
-    <div class="turnmsg hidden" id="turnMsg">C'est à toi de jouer</div>
-    <div class="mine">
-      <div><div style="font-size:12px;color:var(--muted)">MON TAPIS</div><div class="s" id="myStack">0</div></div>
+    <div class="mybar">
+      <div><div class="l">MES JETONS</div><div class="s" id="myStack">0</div></div>
       <div class="c" id="myInfo"></div>
     </div>
-    <div id="actionsArea">
-      <div class="chips" id="chips"></div>
-      <div class="amount">
-        <button class="ghost" id="clearAmt">✕</button>
-        <input id="amt" type="number" inputmode="numeric" min="0" placeholder="Montant">
-      </div>
-      <div class="acts">
-        <button class="red" id="foldBtn">Se coucher</button>
-        <button id="callBtn">Check</button>
-        <button class="gold" id="betBtn">Miser</button>
-      </div>
-      <button class="ghost" id="allinBtn" style="width:100%;margin-top:8px;padding:10px">Tapis !</button>
-    </div>
-    <div class="wait hidden" id="waitMsg"></div>
+    <div class="acts" id="acts"></div>
   </div>
 </div>
 
+<!-- Fenêtre de mise -->
+<div class="modal hidden" id="betModal">
+  <div class="sheet">
+    <h3 id="betTitle">Miser</h3>
+    <div class="betval"><span class="n" id="betN">0</span> <span class="u">jetons</span></div>
+    <div class="betsub" id="betSub"></div>
+    <div class="stepper">
+      <button class="ghost" id="betMinus">−</button>
+      <input type="range" id="betRange" min="0" max="100" step="1">
+      <button class="ghost" id="betPlus">+</button>
+    </div>
+    <div class="presets" id="presets"></div>
+    <div class="row">
+      <button class="ghost" id="betCancel">Annuler</button>
+      <button class="gold" id="betOk">Valider</button>
+    </div>
+  </div>
+</div>
+
+<!-- Gagnant -->
 <div class="modal hidden" id="winModal">
   <div class="sheet">
-    <h3>Qui remporte le pot ?</h3>
-    <p>Coche plusieurs joueurs en cas d'égalité : le pot sera partagé.</p>
+    <h3>Qui gagne le pot ?</h3>
+    <p>Touche le gagnant. En cas d'égalité, coche plusieurs joueurs : le pot sera partagé.</p>
     <div id="winList"></div>
     <div class="row">
       <button class="ghost" id="winCancel">Annuler</button>
-      <button class="gold" id="winOk">Valider</button>
+      <button class="gold" id="winOk">Donner le pot</button>
     </div>
+  </div>
+</div>
+
+<!-- Gestion d'un joueur -->
+<div class="modal hidden" id="plModal">
+  <div class="sheet">
+    <h3 id="plName"></h3>
+    <p id="plInfo"></p>
+    <label style="font-size:13px;color:var(--muted)">Nombre de jetons</label>
+    <div class="row" style="margin-top:6px">
+      <input id="plStack" type="number" inputmode="numeric" min="0" style="flex:2">
+      <button id="plStackOk" style="flex:1">Enregistrer</button>
+    </div>
+    <button class="ghost stackbtn" id="plFold">Coucher ce joueur pour cette main</button>
+    <button class="red stackbtn" id="plRemove">Retirer de la table</button>
+    <button class="ghost stackbtn" id="plClose">Fermer</button>
+  </div>
+</div>
+
+<!-- Blindes -->
+<div class="modal hidden" id="blindsModal">
+  <div class="sheet">
+    <h3>Blindes</h3>
+    <p>Prélevées automatiquement au début de chaque main. Mets 0 et 0 pour jouer sans blindes.</p>
+    <div class="row">
+      <div style="flex:1"><label style="font-size:13px;color:var(--muted)">Petite</label><input id="sbIn" type="number" inputmode="numeric" min="0"></div>
+      <div style="flex:1"><label style="font-size:13px;color:var(--muted)">Grosse</label><input id="bbIn" type="number" inputmode="numeric" min="0"></div>
+    </div>
+    <div class="row">
+      <button class="ghost" id="blindsCancel">Annuler</button>
+      <button class="gold" id="blindsOk">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Invitation -->
+<div class="modal hidden" id="shareModal">
+  <div class="sheet share">
+    <h3>Inviter des joueurs</h3>
+    <p>Fais scanner ce QR code, ou envoie le lien.</p>
+    <div id="qr"></div>
+    <div class="link" id="shareLink"></div>
+    <div class="row">
+      <button class="gold" id="copyBtn">Copier le lien</button>
+      <button class="hidden" id="nativeShare">Envoyer…</button>
+    </div>
+    <button class="ghost stackbtn" id="shareClose">Fermer</button>
   </div>
 </div>
 
 <script>
 const $ = id => document.getElementById(id);
-const CODE = location.pathname.split('/').filter(Boolean)[1]?.toUpperCase() || '';
+const CODE = (location.pathname.split('/').filter(Boolean)[1] || '').toUpperCase();
 const KEY = 'pj_' + CODE;
 let token = localStorage.getItem(KEY);
-let S = null, lastVersion = -1, shareBase = location.origin, busy = false;
+let S = null, lastVersion = -1, busy = false, wasMyTurn = false, managed = null, bet = null;
 
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt = n => Number(n).toLocaleString('fr-FR');
+const open = id => $(id).classList.remove('hidden');
+const close = id => $(id).classList.add('hidden');
+document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.classList.add('hidden'); }));
 
 function toast(msg, ok) {
+  document.querySelectorAll('.toast').forEach(t => t.remove());
   const t = document.createElement('div');
   t.className = 'toast' + (ok ? ' ok' : ''); t.textContent = msg;
-  document.body.appendChild(t); setTimeout(() => t.remove(), 2600);
+  document.body.appendChild(t); setTimeout(() => t.remove(), 3000);
 }
 
 async function post(path, body) {
@@ -244,215 +294,270 @@ async function post(path, body) {
   if (!r.ok) throw new Error(d.error || 'Erreur');
   return d;
 }
-
 async function act(type, extra = {}) {
-  if (busy) return;
+  if (busy) return false;
   busy = true;
   try { await post('/api/action', { code: CODE, token, type, ...extra }); await poll(true); return true; }
   catch (e) { toast(e.message); return false; }
   finally { busy = false; }
 }
 
-// ---------- rejoindre ----------
-$('codeLbl').textContent = CODE;
+const me = () => S && S.players.find(p => p.id === S.me);
+const byId = id => S.players.find(p => p.id === id);
+const toCallOf = p => Math.max(0, S.maxBet - p.streetBet);
+
+/* ---------- Rejoindre ---------- */
 $('joinName').value = localStorage.getItem('pj_name') || '';
 $('joinForm').onsubmit = async e => {
   e.preventDefault(); $('joinErr').textContent = '';
   try {
     const d = await post('/api/join', { code: CODE, name: $('joinName').value });
     token = d.token; localStorage.setItem(KEY, token); localStorage.setItem('pj_name', $('joinName').value.trim());
-    lastVersion = -1; poll(true);
+    close('kickedMsg'); lastVersion = -1; poll(true);
   } catch (err) { $('joinErr').textContent = err.message; }
 };
 
-// ---------- partage ----------
-async function setupShare() {
+/* ---------- Invitation ---------- */
+let shareUrl = location.origin + '/g/' + CODE;
+(async () => {
   if (['localhost', '127.0.0.1', '::1'].includes(location.hostname)) {
-    try { shareBase = (await (await fetch('/api/info')).json()).lanUrl; } catch {}
+    try { shareUrl = (await (await fetch('/api/info')).json()).lanUrl + '/g/' + CODE; } catch {}
   }
-  const url = shareBase + '/g/' + CODE;
-  $('shareLink').textContent = url;
-  if (window.QRCode) new QRCode($('qr'), { text: url, width: 240, height: 240, correctLevel: QRCode.CorrectLevel.M });
+  $('shareLink').textContent = shareUrl;
+  if (window.QRCode) new QRCode($('qr'), { text: shareUrl, width: 400, height: 400, correctLevel: QRCode.CorrectLevel.M });
   else $('qr').classList.add('hidden');
-  $('copyBtn').onclick = async () => {
-    try { await navigator.clipboard.writeText(url); toast('Lien copié !', true); }
-    catch { prompt('Copie ce lien :', url); }
-  };
-  if (navigator.share) {
-    $('nativeShare').classList.remove('hidden');
-    $('nativeShare').onclick = () => navigator.share({ title: 'Partie de poker', text: 'Rejoins ma table de poker :', url }).catch(() => {});
-  }
-}
-
-// ---------- jetons ----------
-function chipValues() {
-  const base = S.bb > 0 ? S.bb : Math.max(1, Math.round(S.startStack / 100));
-  return [base / 2 >= 1 ? Math.round(base / 2) : 1, base, base * 5, base * 25, base * 100].map(v => Math.max(1, Math.round(v)));
-}
-function renderChips() {
-  const vals = chipValues();
-  const key = vals.join(',');
-  if ($('chips').dataset.key === key) return;
-  $('chips').dataset.key = key;
-  $('chips').innerHTML = vals.map(v => `<button data-v="${v}">+${fmt(v)}</button>`).join('');
-  $('chips').querySelectorAll('button').forEach(b => b.onclick = () => {
-    const me = myPlayer(); if (!me) return;
-    const cur = parseInt($('amt').value) || 0;
-    $('amt').value = Math.min(me.stack, cur + parseInt(b.dataset.v));
-    updateBetLabel();
-  });
-}
-$('clearAmt').onclick = () => { $('amt').value = ''; updateBetLabel(); };
-$('amt').oninput = updateBetLabel;
-
-const myPlayer = () => S && S.players.find(p => p.id === S.me);
-
-function updateBetLabel() {
-  const me = myPlayer(); if (!me) return;
-  const toCall = Math.max(0, S.maxBet - me.streetBet);
-  const a = parseInt($('amt').value) || 0;
-  let label = S.maxBet > 0 ? 'Relancer' : 'Miser';
-  if (a > 0 && a >= me.stack) label = 'Tapis';
-  else if (a > 0 && a === toCall) label = 'Suivre';
-  $('betBtn').textContent = a > 0 ? `${label} ${fmt(a)}` : label;
-  $('betBtn').disabled = a <= 0;
-}
-
-$('foldBtn').onclick = () => { if (confirm('Te coucher pour cette main ?')) act('fold'); };
-$('callBtn').onclick = () => {
-  const me = myPlayer(); const toCall = Math.max(0, S.maxBet - me.streetBet);
-  act(toCall > 0 ? 'call' : 'check');
+  if (navigator.share) $('nativeShare').classList.remove('hidden');
+})();
+$('inviteBtn').onclick = () => open('shareModal');
+$('shareClose').onclick = () => close('shareModal');
+$('copyBtn').onclick = async () => {
+  try { await navigator.clipboard.writeText(shareUrl); toast('Lien copié !', true); } catch { prompt('Copie ce lien :', shareUrl); }
 };
-$('betBtn').onclick = async () => {
-  const a = parseInt($('amt').value) || 0;
-  if (a > 0 && await act('bet', { amount: a })) { $('amt').value = ''; updateBetLabel(); }
-};
-$('allinBtn').onclick = () => { const me = myPlayer(); if (confirm(`Faire tapis avec ${fmt(me.stack)} jetons ?`)) act('allin'); };
+$('nativeShare').onclick = () => navigator.share({ title: 'Poker', text: 'Rejoins ma table de poker :', url: shareUrl }).catch(() => {});
 
-// ---------- organisateur ----------
-function renderHost() {
-  const h = $('hostBtns');
-  const nextName = { preflop: 'Flop', flop: 'Turn', turn: 'River' }[S.street];
-  let html = '';
-  if (!S.handActive) {
-    html += `<button class="gold full" data-a="new_hand">Nouvelle main</button>`;
-  } else {
-    html += `<button class="gold" data-a="award">Désigner le gagnant</button>`;
-    html += nextName ? `<button data-a="next_street">Carte suivante : ${nextName}</button>` : `<button disabled>River jouée</button>`;
-    html += `<button class="ghost full" data-a="cancel_hand">Annuler la main (rembourser)</button>`;
-  }
-  h.innerHTML = html;
-  h.querySelectorAll('button[data-a]').forEach(b => b.onclick = () => {
-    const a = b.dataset.a;
-    if (a === 'award') return openWin();
-    if (a === 'cancel_hand' && !confirm('Annuler la main et rendre les mises à chacun ?')) return;
-    act(a);
-  });
-
-  const mgr = $('mgr');
-  if (!mgr.contains(document.activeElement)) {
-    mgr.innerHTML = S.players.map(p => `
-      <div class="mgr">
-        <span class="n">${esc(p.name)}</span>
-        <input type="number" inputmode="numeric" min="0" value="${p.stack}" data-p="${p.id}">
-        <button data-set="${p.id}">OK</button>
-        ${p.id !== S.me ? `<button class="red" data-rm="${p.id}">✕</button>` : ''}
-      </div>`).join('');
-    mgr.querySelectorAll('[data-set]').forEach(b => b.onclick = () => {
-      const v = mgr.querySelector(`input[data-p="${b.dataset.set}"]`).value;
-      act('set_stack', { player: b.dataset.set, stack: v });
-    });
-    mgr.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => {
-      const p = S.players.find(x => x.id === b.dataset.rm);
-      if (confirm(`Retirer ${p.name} de la table ?`)) act('remove', { player: p.id });
-    });
-  }
-  if (document.activeElement !== $('sbIn') && document.activeElement !== $('bbIn')) { $('sbIn').value = S.sb; $('bbIn').value = S.bb; }
+/* ---------- Mise ---------- */
+function openBet() {
+  const m = me(), toCall = toCallOf(m);
+  const minRaise = S.maxBet > 0 ? S.lastRaise : S.minUnit;
+  const min = Math.min(m.stack, toCall + minRaise);
+  bet = { min, max: m.stack, toCall, step: S.minUnit, raising: S.maxBet > 0 };
+  $('betTitle').textContent = bet.raising ? `Relancer (il faut au moins ${fmt(min)})` : 'Combien veux-tu miser ?';
+  $('betRange').min = min; $('betRange').max = m.stack; $('betRange').step = 1;
+  const pot = S.pot + toCall;
+  const presets = [['Minimum', min], ['½ pot', toCall + Math.round(pot / 2)], ['Pot', toCall + pot], ['Tapis', m.stack]];
+  $('presets').innerHTML = presets.map(([l, v]) => `<button data-v="${v}">${l}</button>`).join('');
+  $('presets').querySelectorAll('button').forEach(b => b.onclick = () => setBet(+b.dataset.v));
+  setBet(min);
+  open('betModal');
 }
-$('blindsBtn').onclick = () => act('set_blinds', { sb: $('sbIn').value || 0, bb: $('bbIn').value || 0 });
+function setBet(v) {
+  v = Math.max(bet.min, Math.min(bet.max, Math.round(v)));
+  bet.v = v;
+  $('betRange').value = v;
+  $('betN').textContent = fmt(v);
+  const m = me();
+  const allIn = v >= bet.max;
+  $('betSub').textContent = allIn ? '⚠️ Tous tes jetons (tapis)'
+    : bet.raising ? `Ta mise totale ce tour : ${fmt(m.streetBet + v)} (dont ${fmt(bet.toCall)} pour suivre)`
+    : `Il te restera ${fmt(m.stack - v)} jetons`;
+  $('betOk').textContent = allIn ? `Tapis : ${fmt(v)}` : (bet.raising ? `Relancer : ${fmt(v)}` : `Miser ${fmt(v)}`);
+}
+$('betRange').oninput = e => setBet(+e.target.value);
+$('betMinus').onclick = () => setBet(bet.v - bet.step);
+$('betPlus').onclick = () => setBet(bet.v + bet.step);
+$('betCancel').onclick = () => close('betModal');
+$('betOk').onclick = async () => { if (await act('bet', { amount: bet.v })) close('betModal'); };
 
+/* ---------- Gagnant ---------- */
 function openWin() {
   const cands = S.players.filter(p => p.inHand && !p.folded);
   $('winList').innerHTML = cands.map(p => `
     <label class="pick"><input type="checkbox" value="${p.id}" ${cands.length === 1 ? 'checked' : ''}>
-      <span style="flex:1">${esc(p.name)}</span><span style="color:var(--muted)">${fmt(p.handBet)} misés</span></label>`).join('');
-  $('winModal').classList.remove('hidden');
+      <span style="flex:1;font-weight:600">${esc(p.name)}</span><span style="color:var(--muted);font-size:14px">a misé ${fmt(p.handBet)}</span></label>`).join('');
+  open('winModal');
 }
-$('winCancel').onclick = () => $('winModal').classList.add('hidden');
+$('winCancel').onclick = () => close('winModal');
 $('winOk').onclick = async () => {
   const ids = [...$('winList').querySelectorAll('input:checked')].map(i => i.value);
-  if (!ids.length) return toast('Choisis au moins un gagnant.');
-  if (await act('award', { winners: ids })) $('winModal').classList.add('hidden');
+  if (!ids.length) return toast('Touche le nom du gagnant.');
+  if (await act('award', { winners: ids })) close('winModal');
 };
 
-// ---------- rendu ----------
+/* ---------- Gestion d'un joueur (organisateur) ---------- */
+function openPlayer(id) {
+  managed = id;
+  const p = byId(id); if (!p) return;
+  $('plName').textContent = p.name + (id === S.me ? ' (toi)' : '');
+  $('plInfo').textContent = `${fmt(p.stack)} jetons` + (p.handBet ? ` · ${fmt(p.handBet)} misés dans cette main` : '');
+  $('plStack').value = p.stack;
+  $('plFold').classList.toggle('hidden', !(S.handActive && p.inHand && !p.folded));
+  $('plRemove').classList.toggle('hidden', id === S.hostId);
+  open('plModal');
+}
+$('plClose').onclick = () => close('plModal');
+$('plStackOk').onclick = async () => { if (await act('set_stack', { player: managed, stack: $('plStack').value })) { close('plModal'); toast('Jetons mis à jour', true); } };
+$('plFold').onclick = async () => { if (await act('force_fold', { player: managed })) close('plModal'); };
+$('plRemove').onclick = async () => {
+  const p = byId(managed);
+  const extra = p && p.handBet && S.handActive ? `\nSes ${p.handBet} jetons déjà misés restent dans le pot.` : '';
+  if (p && confirm(`Retirer ${p.name} de la table ?${extra}`) && await act('remove', { player: managed })) { close('plModal'); toast(`${p.name} a été retiré`, true); }
+};
+
+/* ---------- Organisateur ---------- */
+$('awardNow').onclick = openWin;
+$('cancelHand').onclick = () => { if (confirm('Annuler la main ? Chacun récupère ce qu\'il a misé.')) act('cancel_hand'); };
+$('blindsLink').onclick = () => { $('sbIn').value = S.sb; $('bbIn').value = S.bb; open('blindsModal'); };
+$('blindsCancel').onclick = () => close('blindsModal');
+$('blindsOk').onclick = async () => { if (await act('set_blinds', { sb: $('sbIn').value || 0, bb: $('bbIn').value || 0 })) close('blindsModal'); };
+
+/* ---------- Bandeau "quoi faire" ---------- */
+const NEXT = { preflop: ['flop', 'Flop', 'les 3 premières cartes'], flop: ['turn', 'Turn', 'la 4ᵉ carte'], turn: ['river', 'River', 'la 5ᵉ et dernière carte'] };
+
+function renderStatus() {
+  const m = me(), host = S.isHost;
+  let cls = '', big = '', small = '', btn = null;
+  const turnP = S.toAct && byId(S.toAct);
+  const players = S.players.length;
+
+  if (!S.handActive) {
+    if (players < 2) {
+      big = 'En attente des autres joueurs…';
+      small = host ? 'Appuie sur « ＋ Inviter » en haut pour leur envoyer le lien.' : `${esc(S.hostName)} va lancer la partie.`;
+      if (host) btn = ['Inviter des joueurs', 'gold', () => open('shareModal')];
+    } else if (host) {
+      cls = 'host';
+      big = S.handNumber ? 'Prêts pour la main suivante ?' : `${players} joueurs à table. On commence ?`;
+      small = 'Distribue 2 cartes à chacun, puis lance la main : les blindes seront prélevées automatiquement.';
+      btn = [S.handNumber ? 'Lancer la main suivante' : 'Lancer la première main', 'gold', () => act('new_hand')];
+    } else {
+      big = S.handNumber ? 'Main terminée' : 'La partie va commencer';
+      small = `${esc(S.hostName)} va lancer ${S.handNumber ? 'la main suivante' : 'la première main'}.`;
+    }
+  } else if (turnP && m && turnP.id === m.id) {
+    cls = 'mine';
+    big = 'À toi de jouer !';
+    const tc = toCallOf(m);
+    small = tc > 0 ? `Pour rester dans le coup, tu dois mettre <b>${fmt(Math.min(tc, m.stack))}</b> jetons.` : 'Personne n\'a misé : tu peux checker (passer sans miser) ou miser.';
+    small += '<br>Choisis en bas de l\'écran 👇';
+  } else if (turnP) {
+    big = `C'est au tour de ${esc(turnP.name)}`;
+    const tc = toCallOf(turnP);
+    small = tc > 0 ? `${esc(turnP.name)} doit suivre ${fmt(Math.min(tc, turnP.stack))}, relancer ou se coucher.` : `${esc(turnP.name)} peut checker ou miser.`;
+    if (m && m.inHand && !m.folded) small += '<br>Attends ton tour.';
+  } else if (S.street !== 'river') {
+    const [, label, what] = NEXT[S.street];
+    if (host) {
+      cls = 'host';
+      big = `Tour terminé : retourne ${what}`;
+      small = `Pose ${what} (${label}) au milieu de la table, puis appuie sur le bouton.`;
+      btn = [`C'est fait : ${label} dévoilé`, 'gold', () => act('next_street')];
+    } else {
+      big = 'Tour d\'enchères terminé';
+      small = `${esc(S.hostName)} retourne ${what} (${label}).`;
+    }
+  } else {
+    cls = host ? 'host' : 'win';
+    big = 'Abattage : montrez vos cartes !';
+    small = host ? 'Regardez qui a la meilleure main, puis désigne le gagnant.' : `${esc(S.hostName)} va désigner le gagnant.`;
+    if (host) btn = ['Désigner le gagnant', 'gold', openWin];
+  }
+
+  const last = S.log.length ? S.log[S.log.length - 1].msg : '';
+  $('status').className = 'status ' + cls;
+  $('status').innerHTML = `<div class="big">${big}</div>${small ? `<div class="small">${small}</div>` : ''}`
+    + (btn ? `<button class="${btn[1]}" id="statusBtn">${btn[0]}</button>` : '')
+    + (last ? `<div class="last">Dernière action : ${esc(last)}</div>` : '');
+  if (btn) $('statusBtn').onclick = btn[2];
+}
+
+/* ---------- Barre du bas ---------- */
+function renderDock() {
+  const m = me();
+  $('dock').classList.toggle('hidden', !m);
+  if (!m) return;
+  $('myStack').textContent = fmt(m.stack);
+  const myTurn = S.handActive && S.toAct === m.id;
+  const tc = toCallOf(m);
+  const acts = $('acts');
+
+  if (myTurn && !wasMyTurn && navigator.vibrate) navigator.vibrate([120, 80, 120]);
+  wasMyTurn = myTurn;
+
+  if (!myTurn) {
+    $('myInfo').innerHTML = !S.handActive ? '' : m.folded ? 'Couché pour cette main'
+      : !m.inHand ? 'Tu joues à la prochaine main' : m.stack === 0 ? 'Tapis — bonne chance !'
+      : m.streetBet ? `Misé ce tour : <b>${fmt(m.streetBet)}</b>` : 'En attente de ton tour';
+    acts.innerHTML = ''; acts.classList.add('hidden');
+    return;
+  }
+  acts.classList.remove('hidden');
+  $('myInfo').innerHTML = tc > 0 ? `À suivre<br><b>${fmt(Math.min(tc, m.stack))}</b>` : 'Rien à suivre';
+  const canRaise = m.stack > tc;
+  let html = '';
+  if (tc > 0) {
+    html += `<button class="red" data-a="fold">Se coucher<small>abandonner</small></button>`;
+    html += tc >= m.stack
+      ? `<button class="gold" data-a="call">Suivre<small>tapis ${fmt(m.stack)}</small></button>`
+      : `<button data-a="call">Suivre<small>mettre ${fmt(tc)}</small></button>`;
+    if (canRaise) html += `<button class="gold" data-a="raise">Relancer<small>miser plus</small></button>`;
+  } else {
+    html += `<button data-a="check">Check<small>passer sans miser</small></button>`;
+    html += `<button class="gold" data-a="raise">Miser<small>choisir un montant</small></button>`;
+  }
+  acts.innerHTML = html;
+  acts.querySelectorAll('button').forEach(b => b.onclick = () => {
+    const a = b.dataset.a;
+    if (a === 'raise') return openBet();
+    if (a === 'fold' && !confirm('Te coucher ? Tu perds ce que tu as déjà misé dans cette main.')) return;
+    act(a);
+  });
+}
+
+/* ---------- Rendu ---------- */
 function render() {
-  $('joinView').classList.add('hidden');
-  $('tableView').classList.remove('hidden');
+  close('joinView'); close('notFound'); open('tableView');
+  $('inviteBtn').classList.toggle('hidden', !S.isHost);
 
   $('pot').textContent = fmt(S.pot);
-  const streetFr = { preflop: 'Préflop', flop: 'Flop', turn: 'Turn', river: 'River' };
-  $('meta').textContent = S.handActive
-    ? `Main n°${S.handNumber}` + (S.bb ? ` · Blindes ${fmt(S.sb)}/${fmt(S.bb)}` : '')
-    : (S.handNumber ? `Main n°${S.handNumber} terminée — en attente de la suivante` : 'En attente du lancement de la première main');
+  const order = ['preflop', 'flop', 'turn', 'river'];
+  const cur = order.indexOf(S.street);
   $('streets').innerHTML = S.handActive
-    ? ['preflop', 'flop', 'turn', 'river'].map(s => `<span class="${s === S.street ? 'on' : ''}">${streetFr[s]}</span>`).join('')
-    : '';
+    ? order.map((s, i) => `<span class="${i === cur ? 'on' : i < cur ? 'done' : ''}">${['Préflop', 'Flop', 'Turn', 'River'][i]}</span>`).join('')
+    : `<span>${S.bb ? `Blindes ${fmt(S.sb)} / ${fmt(S.bb)}` : 'Sans blindes'}</span>`;
 
+  renderStatus();
+
+  $('playersTitle').textContent = S.handActive ? `Joueurs · main n°${S.handNumber}` : `Joueurs (${S.players.length})`;
   $('players').innerHTML = S.players.map(p => {
-    const cls = ['pl', p.id === S.me ? 'me' : '', p.folded ? 'folded' : '', p.id === S.toAct ? 'turn' : ''].join(' ');
-    const badges = (p.id === S.dealer && S.handActive ? '<span class="badge d">D</span>' : '')
+    const cls = ['pl', p.id === S.me ? 'me' : '', p.folded ? 'folded' : '', p.id === S.toAct ? 'turn' : '', S.isHost ? 'tap' : ''].join(' ');
+    const badges = (p.id === S.dealer && S.handActive ? '<span class="badge d" title="Donneur">D</span>' : '')
       + (p.folded ? '<span class="badge f">couché</span>' : '')
-      + (S.handActive && p.inHand && !p.folded && p.stack === 0 ? '<span class="badge a">tapis</span>' : '')
-      + (p.id === S.toAct ? '<span class="badge t">à lui</span>' : '');
-    return `<div class="${cls}">
-      <span class="dot ${p.online ? '' : 'off'}" title="${p.online ? 'connecté' : 'déconnecté'}"></span>
-      <span class="name">${esc(p.name)}${p.id === S.me ? ' <small>(toi)</small>' : ''}${badges}</span>
-      <span class="bet">${p.streetBet ? fmt(p.streetBet) : ''}</span>
+      + (S.handActive && p.inHand && !p.folded && p.stack === 0 ? '<span class="badge a">tapis</span>' : '');
+    return `<div class="${cls}" data-id="${p.id}">
+      <span class="dot ${p.online ? '' : 'off'}"></span>
+      <span class="name">${p.id === S.toAct ? '👉 ' : ''}${esc(p.name)}${p.id === S.me ? ' <small>(toi)</small>' : ''}${badges}</span>
+      ${p.streetBet ? `<span class="bet">${fmt(p.streetBet)}</span>` : ''}
       <span class="stack">${fmt(p.stack)}</span>
+      ${S.isHost ? '<span class="more">›</span>' : ''}
     </div>`;
   }).join('');
+  if (S.isHost) $('players').querySelectorAll('.pl').forEach(el => el.onclick = () => openPlayer(el.dataset.id));
+  $('hostHint').classList.toggle('hidden', !S.isHost || S.players.length < 2);
+  $('hostExtra').classList.toggle('hidden', !S.isHost || !S.handActive);
 
   $('log').innerHTML = S.log.slice().reverse().map(l => `<div>${esc(l.msg)}</div>`).join('');
-
-  $('hostPanel').classList.toggle('hidden', !S.isHost);
-  if (S.isHost) renderHost();
-  $('sharePanel').open = true;
-
-  // Barre d'action
-  const me = myPlayer();
-  $('dock').classList.toggle('hidden', !me);
-  if (!me) return;
-  renderChips();
-  $('myStack').textContent = fmt(me.stack);
-  const toCall = Math.max(0, S.maxBet - me.streetBet);
-  const canPlay = S.handActive && me.inHand && !me.folded && me.stack > 0;
-  $('actionsArea').classList.toggle('hidden', !canPlay);
-  $('waitMsg').classList.toggle('hidden', canPlay);
-  $('turnMsg').classList.toggle('hidden', !(canPlay && S.toAct === me.id));
-  if (!canPlay) {
-    $('waitMsg').textContent = !S.handActive ? "En attente de la prochaine main…"
-      : !me.inHand ? "Tu joueras à partir de la prochaine main."
-      : me.folded ? "Tu es couché pour cette main."
-      : "Tu es à tapis — bonne chance !";
-    $('myInfo').innerHTML = me.streetBet ? `Mise ce tour : <b>${fmt(me.streetBet)}</b>` : '';
-  } else {
-    $('myInfo').innerHTML = `Mise ce tour : <b>${fmt(me.streetBet)}</b><br>` + (toCall ? `À suivre : <b>${fmt(toCall)}</b>` : 'Rien à suivre');
-    $('callBtn').textContent = toCall ? `Suivre ${fmt(Math.min(toCall, me.stack))}` : 'Check';
-    $('allinBtn').textContent = `Tapis ! (${fmt(me.stack)})`;
-  }
-  updateBetLabel();
+  renderDock();
 }
 
 async function poll(force) {
   try {
     const r = await fetch(`/api/state?code=${encodeURIComponent(CODE)}&token=${encodeURIComponent(token || '')}`, { cache: 'no-store' });
     const d = await r.json();
-    if (r.status === 404) { $('notFound').classList.remove('hidden'); $('joinView').classList.add('hidden'); $('tableView').classList.add('hidden'); $('dock').classList.add('hidden'); return; }
+    if (r.status === 404) { open('notFound'); close('joinView'); close('tableView'); close('dock'); return; }
     S = d;
     if (!S.me) {
-      if (token) { localStorage.removeItem(KEY); token = null; }
-      $('joinView').classList.remove('hidden'); $('tableView').classList.add('hidden'); $('dock').classList.add('hidden');
+      if (token) { localStorage.removeItem(KEY); token = null; open('kickedMsg'); document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden')); }
+      open('joinView'); close('tableView'); close('dock');
       return;
     }
     if (force || S.version !== lastVersion) { lastVersion = S.version; render(); }
@@ -460,10 +565,9 @@ async function poll(force) {
 }
 
 if (!CODE) location.href = '/';
-setupShare();
 poll(true);
 setInterval(poll, 1000);
-setInterval(() => { lastVersion = -1; }, 5000); // rafraîchit les indicateurs de connexion
+setInterval(() => { lastVersion = -1; }, 5000);
 </script>
 </body>
 </html>

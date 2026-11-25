@@ -20,6 +20,7 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 # Les pages peuvent être dans static/ ou directement à côté de server.py
 STATIC = os.path.join(BASE, "static") if os.path.isfile(os.path.join(BASE, "static", "table.html")) else BASE
 STREETS = ["preflop", "flop", "turn", "river"]
+STREET_FR = {"preflop": "Préflop", "flop": "Flop", "turn": "Turn", "river": "River"}
 GAME_TTL = 24 * 3600
 
 LOCK = threading.Lock()
@@ -50,12 +51,12 @@ class GameError(Exception):
 
 
 class Game:
-    def __init__(self, stack, sb, bb):
+    def __init__(self, stack):
         self.code = new_code()
         self.host_token = None
         self.start_stack = stack
-        self.sb = sb
-        self.bb = bb
+        self.sb = 0
+        self.bb = 0
         self.players = []  # ordre = ordre autour de la table
         self.pot = 0
         self.street = None
@@ -63,6 +64,7 @@ class Game:
         self.hand_number = 0
         self.dealer = -1
         self.to_act = None
+        self.last_raise = 0
         self.log = []
         self.version = 0
         self.touched = time.time()
@@ -80,7 +82,7 @@ class Game:
         for p in self.players:
             if p["token"] == token:
                 return p
-        raise GameError("Joueur inconnu — rejoins la partie.")
+        raise GameError("Tu ne fais plus partie de cette table.")
 
     def player_by_id(self, pid):
         for p in self.players:
@@ -94,7 +96,7 @@ class Game:
     def max_bet(self):
         return max([p["street_bet"] for p in self.players] or [0])
 
-    def in_hand(self):
+    def alive(self):
         return [p for p in self.players if p["in_hand"] and not p["folded"]]
 
     def next_seat(self, start, pred):
@@ -108,12 +110,31 @@ class Game:
     def can_act(self, p):
         return p["in_hand"] and not p["folded"] and p["stack"] > 0
 
-    def advance_turn(self, from_idx):
+    def needs_action(self, p):
+        return self.can_act(p) and (not p["acted"] or p["street_bet"] < self.max_bet())
+
+    def min_bet_unit(self):
+        return self.bb if self.bb > 0 else 1
+
+    def set_next_to_act(self, from_idx):
+        """Passe la parole au prochain joueur qui doit agir (None = tour d'enchères terminé)."""
         if not self.hand_active:
             self.to_act = None
             return
-        nxt = self.next_seat(from_idx, self.can_act)
+        nxt = self.next_seat(from_idx, self.needs_action)
         self.to_act = self.players[nxt]["id"] if nxt is not None else None
+
+    def check_last_standing(self):
+        """Si un seul joueur n'est pas couché, il remporte automatiquement le pot."""
+        alive = self.alive()
+        if self.hand_active and len(alive) == 1:
+            w = alive[0]
+            pot = self.pot
+            w["stack"] += pot
+            self.add_log(f"🏆 {w['name']} remporte le pot de {pot} (tous les autres se sont couchés).")
+            self.finish_hand()
+            return True
+        return False
 
     # ---------- joueurs ----------
     def join(self, name):
@@ -133,6 +154,7 @@ class Game:
             "hand_bet": 0,
             "folded": False,
             "in_hand": False,
+            "acted": False,
             "last_seen": time.time(),
         }
         self.players.append(p)
@@ -141,7 +163,7 @@ class Game:
 
     # ---------- actions de jeu ----------
     def put_in(self, p, amount):
-        amount = min(amount, p["stack"])
+        amount = max(0, min(amount, p["stack"]))
         p["stack"] -= amount
         p["street_bet"] += amount
         p["hand_bet"] += amount
@@ -150,30 +172,32 @@ class Game:
 
     def act(self, p, kind, amount=0):
         if not self.hand_active:
-            raise GameError("Aucune main en cours. L'organisateur doit lancer une nouvelle main.")
-        if not p["in_hand"]:
-            raise GameError("Tu n'es pas dans cette main (tu as rejoint en cours de route).")
-        if p["folded"]:
-            raise GameError("Tu t'es déjà couché pour cette main.")
-        to_call = self.max_bet() - p["street_bet"]
+            raise GameError("Aucune main en cours.")
+        if not p["in_hand"] or p["folded"]:
+            raise GameError("Tu ne joues pas cette main.")
+        if self.to_act != p["id"]:
+            if self.to_act is None:
+                raise GameError("Le tour d'enchères est terminé : attends la carte suivante.")
+            raise GameError(f"Ce n'est pas ton tour : c'est à {self.player_by_id(self.to_act)['name']}.")
+
+        old_max = self.max_bet()
+        to_call = old_max - p["street_bet"]
 
         if kind == "fold":
             p["folded"] = True
             self.add_log(f"{p['name']} se couche.")
-            alive = self.in_hand()
-            if len(alive) == 1:
-                self.add_log(f"Tout le monde s'est couché : {alive[0]['name']} peut remporter le pot.")
         elif kind == "check":
             if to_call > 0:
                 raise GameError(f"Impossible de checker : il faut suivre {to_call}.")
             self.add_log(f"{p['name']} checke.")
         elif kind == "call":
             if to_call <= 0:
-                raise GameError("Rien à suivre — tu peux checker.")
+                raise GameError("Rien à suivre : tu peux checker.")
             put = self.put_in(p, to_call)
-            tag = " (tapis)" if p["stack"] == 0 else ""
-            self.add_log(f"{p['name']} suit {put}{tag}.")
-        elif kind == "bet":
+            self.add_log(f"{p['name']} suit {put}" + (" et fait tapis." if p["stack"] == 0 else "."))
+        elif kind in ("bet", "allin"):
+            if kind == "allin":
+                amount = p["stack"]
             try:
                 amount = int(amount)
             except (TypeError, ValueError):
@@ -182,31 +206,43 @@ class Game:
                 raise GameError("Le montant doit être positif.")
             if amount > p["stack"]:
                 raise GameError(f"Tu n'as que {p['stack']} jetons.")
-            if amount < to_call and amount < p["stack"]:
-                raise GameError(f"Il faut au moins {to_call} pour suivre.")
+            all_in = amount == p["stack"]
+            if not all_in:
+                if amount < to_call:
+                    raise GameError(f"Il faut mettre au moins {to_call} pour suivre.")
+                if amount > to_call:
+                    min_raise = self.last_raise if old_max > 0 else self.min_bet_unit()
+                    if amount - to_call < min_raise:
+                        raise GameError(f"Mise trop petite : mets au moins {to_call + min_raise}.")
             put = self.put_in(p, amount)
-            total = p["street_bet"]
-            if p["stack"] == 0:
-                self.add_log(f"{p['name']} fait tapis : {put} (total {total}).")
-            elif to_call == 0:
-                self.add_log(f"{p['name']} mise {put}.")
+            if all_in:
+                self.add_log(f"{p['name']} fait tapis ({put} jetons).")
             elif put == to_call:
                 self.add_log(f"{p['name']} suit {put}.")
+            elif old_max == 0:
+                self.add_log(f"{p['name']} mise {put}.")
             else:
-                self.add_log(f"{p['name']} relance à {total}.")
-        elif kind == "allin":
-            if p["stack"] <= 0:
-                raise GameError("Tu n'as plus de jetons.")
-            put = self.put_in(p, p["stack"])
-            self.add_log(f"{p['name']} fait tapis : {put} (total {p['street_bet']}).")
+                self.add_log(f"{p['name']} relance : mise totale {p['street_bet']}.")
         else:
             raise GameError("Action inconnue.")
-        self.advance_turn(self.idx(p))
+
+        p["acted"] = True
+        new_max = self.max_bet()
+        if new_max > old_max:
+            raise_size = new_max - old_max
+            if raise_size >= self.last_raise:
+                self.last_raise = raise_size
+            for q in self.players:  # une relance redonne la parole aux autres
+                if q is not p:
+                    q["acted"] = False
+        if self.check_last_standing():
+            return
+        self.set_next_to_act(self.idx(p))
 
     # ---------- actions organisateur ----------
     def new_hand(self):
-        if self.hand_active and self.pot > 0:
-            raise GameError("Il reste des jetons dans le pot : désigne d'abord le gagnant.")
+        if self.hand_active:
+            raise GameError("Une main est déjà en cours.")
         eligible = [p for p in self.players if p["stack"] > 0]
         if len(eligible) < 2:
             raise GameError("Il faut au moins 2 joueurs avec des jetons.")
@@ -214,41 +250,47 @@ class Game:
             p["street_bet"] = 0
             p["hand_bet"] = 0
             p["folded"] = False
+            p["acted"] = False
             p["in_hand"] = p["stack"] > 0
         self.pot = 0
         self.hand_number += 1
         self.hand_active = True
         self.street = "preflop"
+        self.last_raise = self.min_bet_unit()
         active = lambda q: q["in_hand"]
-        self.dealer = self.next_seat(self.dealer if self.dealer >= 0 else -1, active)
+        self.dealer = self.next_seat(self.dealer, active)
         d = self.players[self.dealer]
         self.add_log(f"— Main n°{self.hand_number} — Donneur : {d['name']}.")
         if self.bb > 0:
-            if len(eligible) == 2:
-                sb_i = self.dealer
-            else:
-                sb_i = self.next_seat(self.dealer, active)
+            sb_i = self.dealer if len(eligible) == 2 else self.next_seat(self.dealer, active)
             bb_i = self.next_seat(sb_i, active)
             sbp, bbp = self.players[sb_i], self.players[bb_i]
             a = self.put_in(sbp, self.sb)
             b = self.put_in(bbp, self.bb)
             self.add_log(f"Blindes : {sbp['name']} {a}, {bbp['name']} {b}.")
-            self.advance_turn(bb_i)
+            self.set_next_to_act(bb_i)
         else:
-            self.advance_turn(self.dealer)
+            self.set_next_to_act(self.dealer)
 
     def next_street(self):
         if not self.hand_active:
             raise GameError("Aucune main en cours.")
-        i = STREETS.index(self.street) if self.street in STREETS else 3
+        if self.to_act is not None:
+            raise GameError(f"Attends que {self.player_by_id(self.to_act)['name']} ait joué.")
+        i = STREETS.index(self.street)
         if i >= 3:
-            raise GameError("La river est déjà passée : désigne le gagnant.")
+            raise GameError("La river est passée : désigne le gagnant.")
         self.street = STREETS[i + 1]
         for p in self.players:
             p["street_bet"] = 0
-        names = {"flop": "Flop", "turn": "Turn", "river": "River"}
-        self.add_log(f"{names[self.street]} — pot : {self.pot}.")
-        self.advance_turn(self.dealer)
+            p["acted"] = False
+        self.last_raise = self.min_bet_unit()
+        self.add_log(f"{STREET_FR[self.street]} — pot : {self.pot}.")
+        # s'il reste moins de 2 joueurs capables de miser, personne n'a besoin de parler
+        if len([p for p in self.players if self.can_act(p)]) < 2:
+            self.to_act = None
+        else:
+            self.set_next_to_act(self.dealer)
 
     def award(self, winner_ids):
         if not self.hand_active:
@@ -258,8 +300,8 @@ class Game:
         winners = [self.player_by_id(w) for w in winner_ids]
         pot = self.pot
         share, rest = divmod(pot, len(winners))
-        # le reste va au premier gagnant à gauche du donneur
-        order = sorted(winners, key=lambda w: (self.idx(w) - self.dealer - 1) % len(self.players))
+        n = len(self.players)
+        order = sorted(winners, key=lambda w: (self.idx(w) - self.dealer - 1) % n)
         for k, w in enumerate(order):
             w["stack"] += share + (1 if k < rest else 0)
         if len(winners) == 1:
@@ -271,9 +313,13 @@ class Game:
     def cancel_hand(self):
         if not self.hand_active:
             raise GameError("Aucune main en cours.")
+        refunded = sum(p["hand_bet"] for p in self.players)
         for p in self.players:
             p["stack"] += p["hand_bet"]
+        leftover = self.pot - refunded  # mises de joueurs retirés entre-temps
         self.add_log(f"Main n°{self.hand_number} annulée : chacun récupère ses mises.")
+        if leftover > 0:
+            self.add_log(f"{leftover} jetons de joueurs partis sont retirés du jeu.")
         self.finish_hand()
 
     def finish_hand(self):
@@ -286,6 +332,18 @@ class Game:
             p["hand_bet"] = 0
             p["folded"] = False
             p["in_hand"] = False
+            p["acted"] = False
+
+    def force_fold(self, pid):
+        p = self.player_by_id(pid)
+        if not self.hand_active or not p["in_hand"] or p["folded"]:
+            raise GameError(f"{p['name']} ne joue pas cette main.")
+        p["folded"] = True
+        self.add_log(f"{p['name']} est couché par l'organisateur.")
+        if self.check_last_standing():
+            return
+        if self.to_act == p["id"]:
+            self.set_next_to_act(self.idx(p))
 
     def set_stack(self, pid, stack):
         p = self.player_by_id(pid)
@@ -297,29 +355,31 @@ class Game:
             raise GameError("Le tapis ne peut pas être négatif.")
         old = p["stack"]
         p["stack"] = stack
-        self.add_log(f"Tapis de {p['name']} ajusté : {old} → {stack}.")
+        self.add_log(f"Tapis de {p['name']} modifié : {old} → {stack}.")
 
     def remove(self, pid):
         p = self.player_by_id(pid)
-        if self.hand_active and p["hand_bet"] > 0:
-            raise GameError("Ce joueur a des jetons dans le pot : termine la main d'abord.")
+        if p["token"] == self.host_token:
+            raise GameError("L'organisateur ne peut pas être retiré.")
+        if self.hand_active and p["in_hand"] and not p["folded"]:
+            self.force_fold(pid)  # ses mises restent dans le pot
         i = self.idx(p)
+        was_to_act = self.to_act == p["id"]
         self.players.pop(i)
         if self.dealer >= i:
             self.dealer -= 1
-        if self.to_act == p["id"]:
-            self.advance_turn(max(i - 1, 0))
-        self.add_log(f"{p['name']} quitte la table.")
+        if was_to_act:
+            self.set_next_to_act(i - 1)
+        self.add_log(f"{p['name']} a été retiré de la table.")
 
     def set_blinds(self, sb, bb):
         try:
             sb, bb = int(sb), int(bb)
         except (TypeError, ValueError):
             raise GameError("Blindes invalides.")
-        if sb < 0 or bb < 0 or (bb and sb > bb):
-            raise GameError("Blindes invalides.")
+        if sb < 0 or bb < 0 or (bb and sb > bb) or (sb and not bb):
+            raise GameError("Blindes invalides : la petite doit être inférieure ou égale à la grosse.")
         self.sb, self.bb = sb, bb
-        self.add_log(f"Blindes : {sb}/{bb}." if bb else "Blindes désactivées.")
 
     # ---------- état public ----------
     def public(self, me_token):
@@ -327,6 +387,7 @@ class Game:
         if me:
             me["last_seen"] = time.time()
         now = time.time()
+        host = next((p for p in self.players if p["token"] == self.host_token), None)
         return {
             "code": self.code,
             "version": self.version,
@@ -334,12 +395,17 @@ class Game:
             "street": self.street,
             "handActive": self.hand_active,
             "handNumber": self.hand_number,
+            "roundComplete": self.hand_active and self.to_act is None,
             "sb": self.sb,
             "bb": self.bb,
             "startStack": self.start_stack,
             "maxBet": self.max_bet(),
+            "lastRaise": self.last_raise,
+            "minUnit": self.min_bet_unit(),
             "dealer": self.players[self.dealer]["id"] if 0 <= self.dealer < len(self.players) else None,
             "toAct": self.to_act,
+            "hostId": host["id"] if host else None,
+            "hostName": host["name"] if host else "L'organisateur",
             "players": [
                 {
                     "id": p["id"],
@@ -365,7 +431,7 @@ def cleanup():
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "PokerJetons/1.0"
+    server_version = "PokerJetons/2.0"
 
     def log_message(self, fmt, *args):
         pass
@@ -380,8 +446,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def send_file(self, name):
-        path = os.path.join(STATIC, name)
-        with open(path, "rb") as f:
+        with open(os.path.join(STATIC, name), "rb") as f:
             body = f.read()
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -430,15 +495,12 @@ class Handler(BaseHTTPRequestHandler):
             cleanup()
             try:
                 stack = int(d.get("stack", 1000))
-                sb = int(d.get("sb", 0))
-                bb = int(d.get("bb", 0))
             except (TypeError, ValueError):
                 raise GameError("Valeurs invalides.")
             if stack <= 0 or stack > 10_000_000:
                 raise GameError("Tapis de départ invalide.")
-            g = Game(stack, 0, 0)
-            g.set_blinds(sb, bb)
-            g.log.clear()
+            g = Game(stack)
+            g.set_blinds(d.get("sb", 0) or 0, d.get("bb", 0) or 0)
             p = g.join(d.get("name"))
             g.host_token = p["token"]
             GAMES[g.code] = g
@@ -473,12 +535,13 @@ class Handler(BaseHTTPRequestHandler):
                     g.cancel_hand()
                 elif kind == "set_stack":
                     g.set_stack(d.get("player"), d.get("stack"))
+                elif kind == "force_fold":
+                    g.force_fold(d.get("player"))
                 elif kind == "remove":
-                    if d.get("player") == p["id"]:
-                        raise GameError("L'organisateur ne peut pas se retirer.")
                     g.remove(d.get("player"))
                 elif kind == "set_blinds":
                     g.set_blinds(d.get("sb"), d.get("bb"))
+                    g.add_log(f"Blindes : {g.sb}/{g.bb}." if g.bb else "Blindes désactivées.")
                 else:
                     raise GameError("Action inconnue.")
             g.bump()
